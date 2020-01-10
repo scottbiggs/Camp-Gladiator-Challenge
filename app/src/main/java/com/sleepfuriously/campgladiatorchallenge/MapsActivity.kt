@@ -12,7 +12,19 @@ import com.google.android.gms.maps.model.MarkerOptions
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
+    //---------------------------
+    //  data
+    //---------------------------
+
+    private val TAG = "MapsActivity"
+
     private lateinit var mMap: GoogleMap
+
+
+    //---------------------------
+    //  functions
+    //---------------------------
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,4 +52,5 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         mMap.addMarker(MarkerOptions().position(sydney).title("Marker in Sydney"))
         mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))
     }
+
 }
