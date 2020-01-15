@@ -1,23 +1,30 @@
 package com.sleepfuriously.campgladiatorchallenge
 
+import android.app.Activity
+import android.content.Intent
+import android.content.IntentSender
 import android.content.pm.PackageManager
+import android.location.Address
+import android.location.Geocoder
 import android.location.Location
 import android.os.Bundle
 import android.os.PersistableBundle
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
+import android.widget.ProgressBar
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationServices
+import com.google.android.gms.common.api.ResolvableApiException
+import com.google.android.gms.location.*
 import com.google.android.gms.maps.*
-import com.google.android.gms.maps.model.CameraPosition
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.Marker
-import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.gms.maps.model.*
 import com.google.android.libraries.places.api.Places
 import com.google.android.libraries.places.api.net.PlacesClient
 import kotlinx.android.synthetic.main.activity_maps.*
+import java.io.IOException
 
 
 class MapsActivity : AppCompatActivity(),
@@ -27,6 +34,8 @@ class MapsActivity : AppCompatActivity(),
     //---------------------------
     //  constants
     //---------------------------
+
+    private val TAG = "MapsActivity"
 
     //  KEYS
     private val CAMERA_POS_KEY = "camera_pos_key"
@@ -39,13 +48,30 @@ class MapsActivity : AppCompatActivity(),
     private val MAX_LOC_ENTRIES = 5;
 
 
+    companion object {
+        private const val LOCATION_PERMISSION_REQUEST_CODE = 1
+
+        /** request code passed to onActivityResult() */
+        private const val REQUEST_CHECK_SETTINGS = 2
+    }
+
+
+    //---------------------------
+    //  widgets
+    //---------------------------
+
+    /** displays loading message */
+    private lateinit var mLoadingTv: TextView
+
+    /** displays loading animation */
+    private lateinit var mLoadingProgressBar: ProgressBar
+
     //---------------------------
     //  data
     //---------------------------
 
-    private val TAG = "MapsActivity"
-
-    private var mMap: GoogleMap? = null
+    /** the primary data for this app */
+    private lateinit var mMap: GoogleMap
 
     private var mCameraPos: CameraPosition? = null
 
@@ -53,11 +79,20 @@ class MapsActivity : AppCompatActivity(),
     private lateinit var mPlacesClient: PlacesClient;
 
     /** entypoint to Fused Loc Provider */
-    private lateinit var mFusedLocProviderClient: FusedLocationProviderClient
+    private lateinit var mFusedLocationClient: FusedLocationProviderClient
 
+    /** will be used when location callback occurs */
+    private lateinit var mLocationCallback: LocationCallback
+
+    private lateinit var mLocationRequest: LocationRequest
+
+    private var mLocationUpdateState = false
 
     /** last location */
     private lateinit var mLastLocation: Location
+
+    /** stores the last marker so it can be deleted */
+    private var mLastMarker: Marker? = null
 
 
     /** default location (sydney). used when location permission is not granted */
@@ -73,12 +108,13 @@ class MapsActivity : AppCompatActivity(),
 //    private lateinit var mLikelyAttribs: List<>
     private lateinit var mLikelyPlaceLatLng: Array<LatLng>
 
+    /** tells when the progress UI is visible */
+    private var mProgressVisible = false
 
 
     //---------------------------
     //  functions
     //---------------------------
-
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -91,50 +127,152 @@ class MapsActivity : AppCompatActivity(),
 
         setContentView(R.layout.activity_maps)
 
-        // construct a Places client
-        Places.initialize(this, getString(R.string.google_maps_key))
-        mPlacesClient = Places.createClient(this)
-
-        // construct FusedLocaitonProvider client
-        mFusedLocProviderClient = LocationServices.getFusedLocationProviderClient(this)
+        // load widgets
+        mLoadingTv = findViewById(R.id.progress_tv)
+        mLoadingProgressBar = findViewById(R.id.progress_bar)
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager
             .findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
 
+        mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+
+        mLocationCallback = object : LocationCallback() {
+            override fun onLocationResult(p0: LocationResult) {
+                super.onLocationResult(p0)
+
+                mLastLocation = p0.lastLocation
+                placeMarkerOnMap(LatLng(mLastLocation.latitude, mLastLocation.longitude))
+            }
+        }
+
+        createLocationRequest()
+
+        // construct a Places client // todo: is this used yet?
+        Places.initialize(this, getString(R.string.google_maps_key))
+        mPlacesClient = Places.createClient(this)
     }
 
 
     /**
-     * Checks if the app has been granted fine location permission.
-     * If it hasn't, request such permission from the user.
+     * Adds a marker on the map at the given location.  If there's a previous
+     * marker, it's removed.
      */
-    private fun setupMapPermissions() {
-        if (ActivityCompat.checkSelfPermission(this,
-                    android.Manifest.permission.ACCESS_FINE_LOCATION) !=
-                PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this,
-                    arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION),
-                    PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION)
+    private fun placeMarkerOnMap(location: LatLng) {
+        // create a marker object using the given location
+        val markerOptions = MarkerOptions().position(location)
+
+        // use custom marker
+//        val bitmap = BitmapFactory.decodeResource(resources, R.mipmap.ic_user_location)
+//        val bitmapDescriptor = BitmapDescriptorFactory.fromBitmap(bitmap)
+//        markerOptions.icon(bitmapDescriptor)
+
+        // change color from the default red
+        markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
+
+        // display the address with this marker
+        val addressStr = getAddress(location)
+        markerOptions.title(addressStr)
+
+        // remove last marker (if it exists)
+        mLastMarker?.remove()
+
+        // add this marker to the map
+        mLastMarker = mMap.addMarker(markerOptions)
+    }
+
+
+    private fun startLocationUpdates() {
+        if (checkLocPermissions() == false)
             return
+
+        mFusedLocationClient.requestLocationUpdates(mLocationRequest, mLocationCallback, null)
+    }
+
+
+    /**
+     * Checks to see if the app has permissions to use fine location.  If not, asks the
+     * user for permission.
+     *
+     * To see if the user actually DID grant permission, check out [onRequestPermissionsResult].
+     *
+     * @return  True if permission already exists.
+     *          False means we are currently asking if the user will grant permission.
+     */
+    private fun checkLocPermissions(): Boolean {
+        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) !=
+            PackageManager.PERMISSION_GRANTED) {
+            val locPermission = arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
+            ActivityCompat.requestPermissions(this, locPermission, LOCATION_PERMISSION_REQUEST_CODE)
+            return false
+        }
+        return true
+    }
+
+
+    private fun createLocationRequest() {
+
+        mLocationRequest = LocationRequest()
+        mLocationRequest.interval = 10000
+        mLocationRequest.fastestInterval = 5000
+        mLocationRequest.priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+
+        val builder = LocationSettingsRequest.Builder()
+            .addLocationRequest(mLocationRequest)
+
+        val client = LocationServices.getSettingsClient(this)
+        val task = client.checkLocationSettings(builder.build())
+
+        task.addOnSuccessListener {
+            // listener for when location settings successful
+            mLocationUpdateState = true
+            startLocationUpdates()  // cool, go ahead and start updating
         }
 
-        // draws current loc (blue) and enables a button to center the map on current loc
-        mMap?.isMyLocationEnabled = true
-
-        // returns the most recent loc available
-        mFusedLocProviderClient.lastLocation.addOnSuccessListener(this) {
-            location ->
-            // got last know location. could be null
-            if (location != null) {
-                mLastLocation = location
-                val currentLatLng = LatLng(location.latitude, location.longitude)
-
-                mMap?.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 12f))
+        task.addOnFailureListener { e ->
+            if (e is ResolvableApiException) {
+                // unable to satisfy location settings. use dialog to get more info
+                try {
+                    e.startResolutionForResult(this@MapsActivity, REQUEST_CHECK_SETTINGS)
+                }
+                catch (sendEx: IntentSender.SendIntentException) {
+                    Log.e(TAG, e.message ?: "error: unable to resolve createLocationRequest error")
+                }
             }
         }
 
+    }
+
+
+    /**
+     * Given the latitude & longitude, return a string that describes the
+     * address.  Returns empty string if no address found.
+     */
+    private fun getAddress(latLng: LatLng): String {
+
+        /** object to translate between lat/lon into addresses */
+        val geocoder = Geocoder(this)
+        val addresses: List<Address>?
+        val address: Address?
+        var addressText = ""
+
+        try {
+            addresses = geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1)
+
+            // convert first address (if any) to a string.
+            if (addresses != null && !addresses.isEmpty()) {
+                address = addresses[0]
+                for (i in 0 until address.maxAddressLineIndex + 1) {
+                    addressText += if (i == 0) address.getAddressLine(i) else "\n" + address.getAddressLine(i)
+                }
+            }
+        }
+        catch (e: IOException) {
+            Log.e(TAG, e.localizedMessage ?: "problem getting address")
+        }
+
+        return addressText
     }
 
 
@@ -156,11 +294,41 @@ class MapsActivity : AppCompatActivity(),
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        // todo
         when (item.itemId){
 //            R.id.option_get_place ->
 //                showCurrentPlace()
         }
         return true
+    }
+
+
+    private fun enableProgressUI() {
+        mLoadingTv.visibility = View.VISIBLE
+        mLoadingProgressBar.visibility = View.VISIBLE
+        mProgressVisible = true
+    }
+
+    private fun disableProgressUI() {
+        mLoadingTv.visibility = View.GONE
+        mLoadingProgressBar.visibility = View.GONE
+        mProgressVisible = false
+    }
+
+
+
+    //----------------------------------
+    //  callbacks
+    //----------------------------------
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        // we only care about a successful check about settings
+        if ((requestCode == REQUEST_CHECK_SETTINGS) && (resultCode == Activity.RESULT_OK)) {
+            mLocationUpdateState = true
+            startLocationUpdates()  // try again
+        }
     }
 
 
@@ -174,30 +342,71 @@ class MapsActivity : AppCompatActivity(),
      * installed Google Play services and returned to the app.
      */
     override fun onMapReady(googleMap: GoogleMap) {
-
         mMap = googleMap
-        mMap?.uiSettings?.isZoomControlsEnabled = true
-        mMap?.setOnMarkerClickListener(this)
 
-/*
-        // Add a marker in Sydney and move the camera
-//        val sydney = LatLng(-34.0, 151.0)
+//        // Add a marker in Sydney and move the camera
+////        val sydney = LatLng(-34.0, 151.0)
+////        mMap.addMarker(MarkerOptions().position(sydney).title("Marker in Sydney"))
+////        mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))
+//
+//        val ny = LatLng(40.73, -73.99)  // nyc
+//        mMap.addMarker(MarkerOptions().position(ny).title("It's a hell of a town."))
+////        mMap.moveCamera(CameraUpdateFactory.newLatLng(ny))
+//        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(ny, 12f))
+//
+        mMap.uiSettings.isZoomControlsEnabled = true
+        mMap.setOnMarkerClickListener(this)
 
-        mMap?.addMarker(MarkerOptions().position(mDefaultLocation).title("somewhere down under"))
-//        mMap.addMarker(MarkerOptions().position(sydney).title("Marker in Sydney"))
-        val camUpdate = CameraUpdateFactory.newLatLngZoom(mDefaultLocation, DEFAULT_ZOOM)
-        mMap?.animateCamera(camUpdate)
 
-//        mMap.animateCamera(CameraUpdateFactory.newLatLng(sydney))
-//        mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))
-*/
-        // get user's permission
-        setupMapPermissions()
+        if (checkLocPermissions() == false)
+            return
+
+        // disable the little blue dot that typically shows your current loc.
+        // I'm using a custom that is much easier to see.
+        mMap.isMyLocationEnabled = false
+
+
+        // change map type (if you like) here
+//        mMap.mapType = GoogleMap.MAP_TYPE_TERRAIN
+
+        mFusedLocationClient.lastLocation.addOnSuccessListener(this) {
+                location ->
+            // check for null (it's possible)
+            if (location != null) {
+                mLastLocation = location
+                val currentLatLng = LatLng(location.latitude, location.longitude)
+                placeMarkerOnMap(currentLatLng) // add our current location marker
+
+                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 12f))
+            }
+        }
+
     }
+
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        // todo: try again
+    }
+
 
     override fun onMarkerClick(p0: Marker?): Boolean {
+
+        // just a test
+        if (mProgressVisible) {
+            disableProgressUI()
+        }
+        else {
+            enableProgressUI()
+        }
+
         return false
     }
+
 
 
 }
