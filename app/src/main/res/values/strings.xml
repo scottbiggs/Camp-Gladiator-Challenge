@@ -1,4 +1,10 @@
 <resources>
     <string name="app_name">Camp Gladiator Challenge</string>
-    <string name="title_activity_maps">Map</string>
+    <string name="option_get_place">get location</string>
+    <string name="pick_place">choose location</string>
+    <string name="default_into_title">default location</string>
+    <string name="default_info_snippet">No palces found, because location permission is disabled.</string>
+
+    <string name="search_hint">search</string>
+    <string name="loading_msg">loading…</string>
 </resources>
