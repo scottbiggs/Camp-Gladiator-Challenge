@@ -197,10 +197,15 @@ class MapsActivity : AppCompatActivity(),
             Response.Listener { response ->
                 // just show the first bit of the response
                 Log.d(TAG, "response: ${response.substring(0, 250)}")
+                disableProgressUI()
             },
-            Response.ErrorListener { Log.e(TAG, "nope") })
+            Response.ErrorListener {
+                Log.e(TAG, "nope")
+                disableProgressUI()
+            })
 
         queue.add(stringRequest)
+        enableProgressUI()
     }
 
 
@@ -332,9 +337,10 @@ class MapsActivity : AppCompatActivity(),
     private fun disableProgressUI() {
         Log.d(TAG, "disableProgressUI(), mProgressVisible is at $mProgressVisible")
         mProgressVisible--
-        if (mProgressVisible == 0) {
+        if (mProgressVisible <= 0) {
             mLoadingTv.visibility = View.GONE
             mLoadingProgressBar.visibility = View.GONE
+            mProgressVisible = 0
         }
     }
 
