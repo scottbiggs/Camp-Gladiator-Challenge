@@ -15,6 +15,7 @@ import android.view.MenuItem
 import android.view.View
 import android.widget.ProgressBar
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import com.google.android.gms.common.api.ResolvableApiException
@@ -125,6 +126,20 @@ class MapsActivity : AppCompatActivity(),
 //            mCameraPos = savedInstanceState.getParcelable(CAMERA_POS_KEY)
 //        }
 
+        if (checkLocPermissions() == false) {
+            return
+        }
+
+        completeSetup()
+    }
+
+
+    /**
+     * Called to finish initialization, but only after it's
+     * certain that the app has the proper permissions.
+     */
+    private fun completeSetup() {
+
         setContentView(R.layout.activity_maps)
 
         // load widgets
@@ -152,8 +167,8 @@ class MapsActivity : AppCompatActivity(),
         // construct a Places client // todo: is this used yet?
         Places.initialize(this, getString(R.string.google_maps_key))
         mPlacesClient = Places.createClient(this)
-    }
 
+    }
 
     /**
      * Adds a marker on the map at the given location.  If there's a previous
@@ -211,6 +226,10 @@ class MapsActivity : AppCompatActivity(),
     }
 
 
+    /**
+     * Creates an asynchronous location request.  Uses a listener that when
+     * successful calls [startLocationUpdates].
+     */
     private fun createLocationRequest() {
 
         mLocationRequest = LocationRequest()
@@ -258,6 +277,7 @@ class MapsActivity : AppCompatActivity(),
         var addressText = ""
 
         try {
+            // todo: should be in a different thread
             addresses = geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1)
 
             // convert first address (if any) to a string.
@@ -276,31 +296,30 @@ class MapsActivity : AppCompatActivity(),
     }
 
 
-    override fun onSaveInstanceState(outState: Bundle, outPersistentState: PersistableBundle) {
+//    override fun onSaveInstanceState(outState: Bundle, outPersistentState: PersistableBundle) {
+//
+//        val tmpLocalMap = mMap  // necessary extra step because of kotlin's extreme null paranoia
+//        if (tmpLocalMap != null) {
+//            outState.putParcelable(CAMERA_POS_KEY, tmpLocalMap.cameraPosition)
+//            outState.putParcelable(LOCATION_KEY, mLastLocation)
+//            super.onSaveInstanceState(outState, outPersistentState)
+//        }
+//    }
 
-        val tmpLocalMap = mMap  // necessary extra step because of kotlin's extreme null paranoia
-        if (tmpLocalMap != null) {
-            outState.putParcelable(CAMERA_POS_KEY, tmpLocalMap.cameraPosition)
-            outState.putParcelable(LOCATION_KEY, mLastLocation)
-            super.onSaveInstanceState(outState, outPersistentState)
-        }
 
-    }
-
-
-    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-        menuInflater.inflate(R.menu.current_place_menu, menu)
-        return true
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        // todo
-        when (item.itemId){
-//            R.id.option_get_place ->
-//                showCurrentPlace()
-        }
-        return true
-    }
+//    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+//        menuInflater.inflate(R.menu.current_place_menu, menu)
+//        return true
+//    }
+//
+//    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+//        // todo
+//        when (item.itemId){
+////            R.id.option_get_place ->
+////                showCurrentPlace()
+//        }
+//        return true
+//    }
 
 
     private fun enableProgressUI() {
@@ -321,15 +340,16 @@ class MapsActivity : AppCompatActivity(),
     //  callbacks
     //----------------------------------
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-
-        // we only care about a successful check about settings
-        if ((requestCode == REQUEST_CHECK_SETTINGS) && (resultCode == Activity.RESULT_OK)) {
-            mLocationUpdateState = true
-            startLocationUpdates()  // try again
-        }
-    }
+//    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+//        super.onActivityResult(requestCode, resultCode, data)
+//
+//        // we only care about a successful check about settings
+//        if ((requestCode == REQUEST_CHECK_SETTINGS) && (resultCode == Activity.RESULT_OK)) {
+//            mLocationUpdateState = true
+//            Log.d(TAG, "trying again: onActivityResult()")
+//            startLocationUpdates()  // try again
+//        }
+//    }
 
 
     /**
@@ -358,13 +378,9 @@ class MapsActivity : AppCompatActivity(),
         mMap.setOnMarkerClickListener(this)
 
 
-        if (checkLocPermissions() == false)
-            return
-
         // disable the little blue dot that typically shows your current loc.
         // I'm using a custom that is much easier to see.
         mMap.isMyLocationEnabled = false
-
 
         // change map type (if you like) here
 //        mMap.mapType = GoogleMap.MAP_TYPE_TERRAIN
@@ -390,7 +406,15 @@ class MapsActivity : AppCompatActivity(),
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        // todo: try again
+
+        if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            completeSetup()
+        }
+        else {
+            Toast.makeText(this, R.string.need_fine_location_permission,
+                Toast.LENGTH_LONG).show()
+            finish()
+        }
     }
 
 

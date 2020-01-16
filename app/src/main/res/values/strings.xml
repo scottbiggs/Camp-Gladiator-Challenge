@@ -5,6 +5,8 @@
     <string name="default_into_title">default location</string>
     <string name="default_info_snippet">No palces found, because location permission is disabled.</string>
 
+    <string name="need_fine_location_permission">This app cannot run without location data.</string>
+
     <string name="search_hint">search</string>
     <string name="loading_msg">loading…</string>
 </resources>
