@@ -109,8 +109,15 @@ class MapsActivity : AppCompatActivity(),
 //    private lateinit var mLikelyAttribs: List<>
     private lateinit var mLikelyPlaceLatLng: Array<LatLng>
 
-    /** tells when the progress UI is visible */
-    private var mProgressVisible = false
+    /**
+     * Progress UI is only invisible when this number is 0.
+     * Every time an asynchronous call is maded, this number
+     * is incremented.  Thus multiple asyncs can start, each
+     * incrementing this datum by calling [enableProgressUI].
+     * The progress bar will only go away when the last thread's
+     * return calls [disableProgressUI]
+     */
+    @Volatile private var mProgressVisible: Int = 0
 
 
     //---------------------------
@@ -143,8 +150,8 @@ class MapsActivity : AppCompatActivity(),
         setContentView(R.layout.activity_maps)
 
         // load widgets
-        mLoadingTv = findViewById(R.id.progress_tv)
         mLoadingProgressBar = findViewById(R.id.progress_bar)
+        mLoadingTv = findViewById(R.id.progress_tv)
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager
@@ -156,7 +163,6 @@ class MapsActivity : AppCompatActivity(),
         mLocationCallback = object : LocationCallback() {
             override fun onLocationResult(p0: LocationResult) {
                 super.onLocationResult(p0)
-
                 mLastLocation = p0.lastLocation
                 placeMarkerOnMap(LatLng(mLastLocation.latitude, mLastLocation.longitude))
             }
@@ -195,14 +201,6 @@ class MapsActivity : AppCompatActivity(),
 
         // add this marker to the map
         mLastMarker = mMap.addMarker(markerOptions)
-    }
-
-
-    private fun startLocationUpdates() {
-        if (checkLocPermissions() == false)
-            return
-
-        mFusedLocationClient.requestLocationUpdates(mLocationRequest, mLocationCallback, null)
     }
 
 
@@ -246,7 +244,7 @@ class MapsActivity : AppCompatActivity(),
         task.addOnSuccessListener {
             // listener for when location settings successful
             mLocationUpdateState = true
-            startLocationUpdates()  // cool, go ahead and start updating
+            mFusedLocationClient.requestLocationUpdates(mLocationRequest, mLocationCallback, null)
         }
 
         task.addOnFailureListener { e ->
@@ -269,7 +267,6 @@ class MapsActivity : AppCompatActivity(),
      * address.  Returns empty string if no address found.
      */
     private fun getAddress(latLng: LatLng): String {
-
         /** object to translate between lat/lon into addresses */
         val geocoder = Geocoder(this)
         val addresses: List<Address>?
@@ -296,61 +293,27 @@ class MapsActivity : AppCompatActivity(),
     }
 
 
-//    override fun onSaveInstanceState(outState: Bundle, outPersistentState: PersistableBundle) {
-//
-//        val tmpLocalMap = mMap  // necessary extra step because of kotlin's extreme null paranoia
-//        if (tmpLocalMap != null) {
-//            outState.putParcelable(CAMERA_POS_KEY, tmpLocalMap.cameraPosition)
-//            outState.putParcelable(LOCATION_KEY, mLastLocation)
-//            super.onSaveInstanceState(outState, outPersistentState)
-//        }
-//    }
-
-
-//    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-//        menuInflater.inflate(R.menu.current_place_menu, menu)
-//        return true
-//    }
-//
-//    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-//        // todo
-//        when (item.itemId){
-////            R.id.option_get_place ->
-////                showCurrentPlace()
-//        }
-//        return true
-//    }
-
-
+    @Synchronized
     private fun enableProgressUI() {
         mLoadingTv.visibility = View.VISIBLE
         mLoadingProgressBar.visibility = View.VISIBLE
-        mProgressVisible = true
+        mProgressVisible++
     }
 
+    @Synchronized
     private fun disableProgressUI() {
-        mLoadingTv.visibility = View.GONE
-        mLoadingProgressBar.visibility = View.GONE
-        mProgressVisible = false
+        Log.d(TAG, "disableProgressUI(), mProgressVisible is at $mProgressVisible")
+        mProgressVisible--
+        if (mProgressVisible == 0) {
+            mLoadingTv.visibility = View.GONE
+            mLoadingProgressBar.visibility = View.GONE
+        }
     }
-
 
 
     //----------------------------------
     //  callbacks
     //----------------------------------
-
-//    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-//        super.onActivityResult(requestCode, resultCode, data)
-//
-//        // we only care about a successful check about settings
-//        if ((requestCode == REQUEST_CHECK_SETTINGS) && (resultCode == Activity.RESULT_OK)) {
-//            mLocationUpdateState = true
-//            Log.d(TAG, "trying again: onActivityResult()")
-//            startLocationUpdates()  // try again
-//        }
-//    }
-
 
     /**
      * Manipulates the map once available.
@@ -364,16 +327,6 @@ class MapsActivity : AppCompatActivity(),
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
 
-//        // Add a marker in Sydney and move the camera
-////        val sydney = LatLng(-34.0, 151.0)
-////        mMap.addMarker(MarkerOptions().position(sydney).title("Marker in Sydney"))
-////        mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))
-//
-//        val ny = LatLng(40.73, -73.99)  // nyc
-//        mMap.addMarker(MarkerOptions().position(ny).title("It's a hell of a town."))
-////        mMap.moveCamera(CameraUpdateFactory.newLatLng(ny))
-//        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(ny, 12f))
-//
         mMap.uiSettings.isZoomControlsEnabled = true
         mMap.setOnMarkerClickListener(this)
 
@@ -381,9 +334,6 @@ class MapsActivity : AppCompatActivity(),
         // disable the little blue dot that typically shows your current loc.
         // I'm using a custom that is much easier to see.
         mMap.isMyLocationEnabled = false
-
-        // change map type (if you like) here
-//        mMap.mapType = GoogleMap.MAP_TYPE_TERRAIN
 
         mFusedLocationClient.lastLocation.addOnSuccessListener(this) {
                 location ->
@@ -400,6 +350,9 @@ class MapsActivity : AppCompatActivity(),
     }
 
 
+    /**
+     * called after a dialog has requested permission from the user
+     */
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
@@ -418,15 +371,10 @@ class MapsActivity : AppCompatActivity(),
     }
 
 
-    override fun onMarkerClick(p0: Marker?): Boolean {
-
-        // just a test
-        if (mProgressVisible) {
-            disableProgressUI()
-        }
-        else {
-            enableProgressUI()
-        }
+    /**
+     * User has clicked on a marker
+     */
+    override fun onMarkerClick(marker: Marker?): Boolean {
 
         return false
     }
