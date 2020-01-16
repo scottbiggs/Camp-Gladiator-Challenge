@@ -18,6 +18,11 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import com.android.volley.Request
+import com.android.volley.Response
+import com.android.volley.toolbox.JsonArrayRequest
+import com.android.volley.toolbox.StringRequest
+import com.android.volley.toolbox.Volley
 import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.*
 import com.google.android.gms.maps.*
@@ -54,6 +59,8 @@ class MapsActivity : AppCompatActivity(),
 
         /** request code passed to onActivityResult() */
         private const val REQUEST_CHECK_SETTINGS = 2
+
+        public const val TEST_URL = "https://stagingapi.campgladiator.com/api/v2/places/searchbydistance?lat=30.406991&lon=-97.720310&radius=25"
     }
 
 
@@ -101,6 +108,10 @@ class MapsActivity : AppCompatActivity(),
 
     private val mLocationPermissionGranted = false
 
+    /** used by volley */
+    private val mRequestQ by lazy {
+        Volley.newRequestQueue(this)
+    }
 
     // for selecting a current place
 
@@ -174,7 +185,24 @@ class MapsActivity : AppCompatActivity(),
         Places.initialize(this, getString(R.string.google_maps_key))
         mPlacesClient = Places.createClient(this)
 
+        volleyLoadData()
     }
+
+
+    private fun volleyLoadData() {
+
+        val queue = Volley.newRequestQueue(this)
+
+        val stringRequest = StringRequest(Request.Method.GET, TEST_URL,
+            Response.Listener { response ->
+                // just show the first bit of the response
+                Log.d(TAG, "response: ${response.substring(0, 250)}")
+            },
+            Response.ErrorListener { Log.e(TAG, "nope") })
+
+        queue.add(stringRequest)
+    }
+
 
     /**
      * Adds a marker on the map at the given location.  If there's a previous
@@ -378,6 +406,7 @@ class MapsActivity : AppCompatActivity(),
 
         return false
     }
+
 
 
 
