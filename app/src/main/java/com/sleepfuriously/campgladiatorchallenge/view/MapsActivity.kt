@@ -181,12 +181,6 @@ class MapsActivity : AppCompatActivity(),
     }
 
 
-    override fun onStart() {
-        super.onStart()
-        requestLocations()
-    }
-
-
     /**
      * A chance to save
      */
@@ -205,6 +199,9 @@ class MapsActivity : AppCompatActivity(),
                                         dataList: List<CGLocation>) {
 
         Log.d(TAG, "volleyCallback occured with ${dataList.size} locations")
+
+        // todo: parse the dataList and add it to the map (but only add new items)
+
         disableProgressUI()
     }
 
@@ -221,9 +218,17 @@ class MapsActivity : AppCompatActivity(),
         Log.d(TAG, "requestLocations() start")
 
         val presenter = Presenter(this)
-        presenter.requestLocations(mDefaultLocation, mZoom,
-            this::locationCallbackSuccess,
-            this::locationCallbackError)
+//        if (::mLastLocation.isInitialized) {
+            presenter.requestLocations(LatLng(mLastLocation.latitude, mLastLocation.longitude),
+                mZoom,
+                this::locationCallbackSuccess,
+                this::locationCallbackError)
+//        }
+//        else {
+//        presenter.requestLocations(mDefaultLocation, mZoom,
+//                this::locationCallbackSuccess,
+//                this::locationCallbackError)
+//        }
 
         enableProgressUI()
     }
@@ -440,6 +445,7 @@ class MapsActivity : AppCompatActivity(),
                 placeMarkerOnMap(currentLatLng) // add our current location marker
 
                 mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, mZoom))
+                requestLocations()
             }
         }
 

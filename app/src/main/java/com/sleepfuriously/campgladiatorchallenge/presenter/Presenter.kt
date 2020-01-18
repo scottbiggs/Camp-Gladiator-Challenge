@@ -8,9 +8,11 @@ import com.android.volley.Response
 import com.android.volley.toolbox.JsonObjectRequest
 import com.android.volley.toolbox.Volley
 import com.google.android.gms.maps.model.LatLng
+import com.google.gson.JsonArray
 import com.sleepfuriously.campgladiatorchallenge.model.CGDatum
 import com.sleepfuriously.campgladiatorchallenge.model.CGLocation
 import com.sleepfuriously.campgladiatorchallenge.model.CGTopLevel
+import org.json.JSONArray
 
 /**
  * All access between data and UI comes through here.
@@ -71,7 +73,23 @@ class Presenter constructor(ctx: Context){
         val jsonObjectRequest = JsonObjectRequest(Request.Method.GET, TEST_URL, null,
             Response.Listener { response ->
                 Log.d(TAG, "success, processing through callback")
-                successCallback(location, zoom, emptyList())
+
+                // grab the data (it's in a jsonarray)
+                val jsonArrayLocations: JSONArray? = response.getJSONArray("data")
+                if (jsonArrayLocations == null) {
+                    errorCallback("no data found")
+                }
+                else {
+                    // make list
+                    val locationList: ArrayList<CGLocation> = ArrayList()
+                    for (i in 0 until jsonArrayLocations.length()) {
+                        val locJsonObj = jsonArrayLocations.getJSONObject(i)
+                        val cgLocation = CGLocation(locJsonObj)
+                        locationList.add(cgLocation)
+                    }
+
+                    successCallback(location, zoom, locationList)
+                }
             },
 
             Response.ErrorListener { error ->
