@@ -1,4 +1,4 @@
-package com.sleepfuriously.campgladiatorchallenge
+package com.sleepfuriously.campgladiatorchallenge.model
 
 import org.json.JSONException
 import org.json.JSONObject

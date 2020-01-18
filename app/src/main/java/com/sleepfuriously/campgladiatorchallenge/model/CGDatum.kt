@@ -1,11 +1,11 @@
-package com.sleepfuriously.campgladiatorchallenge
+package com.sleepfuriously.campgladiatorchallenge.model
 
 import org.json.JSONObject
 
 /**
  * Describes a Place for the CG server data.
  */
-class Place {
+class CGDatum {
 
     //------------------
     //  constants
@@ -111,7 +111,9 @@ class Place {
         placeLongitude = jsonObject.getDouble(PLACE_LON_KEY)
         placeActive = jsonObject.getInt(PLACE_ACTIVE_KEY)
         distance = jsonObject.getDouble(DIST_KEY)
-        locationKey = CGLocation(jsonObject.getJSONObject(LOCATION_KEY))
+        locationKey = CGLocation(
+            jsonObject.getJSONObject(LOCATION_KEY)
+        )
     }
 
 }

@@ -1,18 +1,14 @@
-package com.sleepfuriously.campgladiatorchallenge
+package com.sleepfuriously.campgladiatorchallenge.view
 
-import android.app.Activity
-import android.content.Intent
 import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.location.Address
 import android.location.Geocoder
 import android.location.Location
 import android.os.Bundle
-import android.os.PersistableBundle
 import android.util.Log
-import android.view.Menu
-import android.view.MenuItem
 import android.view.View
+import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
@@ -20,7 +16,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import com.android.volley.Request
 import com.android.volley.Response
-import com.android.volley.toolbox.JsonArrayRequest
 import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
 import com.google.android.gms.common.api.ResolvableApiException
@@ -29,7 +24,12 @@ import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.*
 import com.google.android.libraries.places.api.Places
 import com.google.android.libraries.places.api.net.PlacesClient
-import kotlinx.android.synthetic.main.activity_maps.*
+import com.sleepfuriously.campgladiatorchallenge.R
+import com.sleepfuriously.campgladiatorchallenge.model.CGDatum
+import com.sleepfuriously.campgladiatorchallenge.model.CGLocation
+import com.sleepfuriously.campgladiatorchallenge.model.CGTopLevel
+import com.sleepfuriously.campgladiatorchallenge.presenter.Presenter
+import org.json.JSONObject
 import java.io.IOException
 
 
@@ -41,7 +41,7 @@ class MapsActivity : AppCompatActivity(),
     //  constants
     //---------------------------
 
-    private val TAG = "MapsActivity"
+    private val TAG = "biggs-MapsActivity"
 
     //  KEYS
     private val CAMERA_POS_KEY = "camera_pos_key"
@@ -60,7 +60,7 @@ class MapsActivity : AppCompatActivity(),
         /** request code passed to onActivityResult() */
         private const val REQUEST_CHECK_SETTINGS = 2
 
-        public const val TEST_URL = "https://stagingapi.campgladiator.com/api/v2/places/searchbydistance?lat=30.406991&lon=-97.720310&radius=25"
+//        public const val TEST_URL = "https://stagingapi.campgladiator.com/api/v2/places/searchbydistance?lat=30.406991&lon=-97.720310&radius=25"
     }
 
 
@@ -108,11 +108,6 @@ class MapsActivity : AppCompatActivity(),
 
     private val mLocationPermissionGranted = false
 
-    /** used by volley */
-    private val mRequestQ by lazy {
-        Volley.newRequestQueue(this)
-    }
-
     // for selecting a current place
 
     private lateinit var mLikelyPlaceNames: Array<String>
@@ -151,7 +146,6 @@ class MapsActivity : AppCompatActivity(),
         completeSetup()
     }
 
-
     /**
      * Called to finish initialization, but only after it's
      * certain that the app has the proper permissions.
@@ -184,21 +178,71 @@ class MapsActivity : AppCompatActivity(),
         // construct a Places client // todo: is this used yet?
         Places.initialize(this, getString(R.string.google_maps_key))
         mPlacesClient = Places.createClient(this)
-
-        volleyLoadData()
     }
 
 
+    override fun onStart() {
+        super.onStart()
+        requestLocations()
+    }
+
+
+
+    private fun locationCallbackSuccess(location: LatLng,
+                               zoomLevel: Float,
+                               dataList: List<CGLocation>) {
+
+        Log.d(TAG, "volleyCallback occured with ${dataList.size} locations")
+        disableProgressUI()
+    }
+
+    private fun locationCallbackError(errStr: String) {
+        Log.e(TAG, "error in data callback")
+        Toast.makeText(this, "Error receiving data", Toast.LENGTH_LONG).show()
+        disableProgressUI()
+    }
+
+
+
+    private fun requestLocations() {
+
+        Log.d(TAG, "requestLocations() start")
+
+        val presenter = Presenter(this)
+        presenter.requestLocations(mDefaultLocation, 12.0f,
+            this::locationCallbackSuccess,
+            this::locationCallbackError)
+
+        enableProgressUI()
+    }
+
+/*
     private fun volleyLoadData() {
+
+        val presenter = Presenter(this)
+        presenter.getTopLevel(volleyCallback())
+
+
+
 
         val queue = Volley.newRequestQueue(this)
 
-        val stringRequest = StringRequest(Request.Method.GET, TEST_URL,
+        val stringRequest = StringRequest(Request.Method.GET,
+            TEST_URL,
             Response.Listener { response ->
+                val jsonObject = JSONObject(response.toString())
+                val topLevelJsonObject = CGTopLevel(jsonObject)
+
                 // just show the first bit of the response
                 Log.d(TAG, "response: ${response.substring(0, 250)}")
+
+                Log.d(TAG, "success = ${topLevelJsonObject.success}")
+                Log.d(TAG, "message = ${topLevelJsonObject.message}")
+
+
                 disableProgressUI()
             },
+
             Response.ErrorListener {
                 Log.e(TAG, "nope")
                 disableProgressUI()
@@ -207,7 +251,7 @@ class MapsActivity : AppCompatActivity(),
         queue.add(stringRequest)
         enableProgressUI()
     }
-
+*/
 
     /**
      * Adds a marker on the map at the given location.  If there's a previous
@@ -250,7 +294,9 @@ class MapsActivity : AppCompatActivity(),
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) !=
             PackageManager.PERMISSION_GRANTED) {
             val locPermission = arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
-            ActivityCompat.requestPermissions(this, locPermission, LOCATION_PERMISSION_REQUEST_CODE)
+            ActivityCompat.requestPermissions(this, locPermission,
+                LOCATION_PERMISSION_REQUEST_CODE
+            )
             return false
         }
         return true
@@ -284,7 +330,9 @@ class MapsActivity : AppCompatActivity(),
             if (e is ResolvableApiException) {
                 // unable to satisfy location settings. use dialog to get more info
                 try {
-                    e.startResolutionForResult(this@MapsActivity, REQUEST_CHECK_SETTINGS)
+                    e.startResolutionForResult(this@MapsActivity,
+                        REQUEST_CHECK_SETTINGS
+                    )
                 }
                 catch (sendEx: IntentSender.SendIntentException) {
                     Log.e(TAG, e.message ?: "error: unable to resolve createLocationRequest error")
@@ -328,6 +376,8 @@ class MapsActivity : AppCompatActivity(),
 
     @Synchronized
     private fun enableProgressUI() {
+        Log.d(TAG, "enableProgressUI")
+
         mLoadingTv.visibility = View.VISIBLE
         mLoadingProgressBar.visibility = View.VISIBLE
         mProgressVisible++
@@ -398,7 +448,8 @@ class MapsActivity : AppCompatActivity(),
             completeSetup()
         }
         else {
-            Toast.makeText(this, R.string.need_fine_location_permission,
+            Toast.makeText(this,
+                R.string.need_fine_location_permission,
                 Toast.LENGTH_LONG).show()
             finish()
         }

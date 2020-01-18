@@ -48,6 +48,6 @@
         android:layout_height="match_parent"
         android:layout_below="@id/search_bar_et"
         android:layout_above="@id/progress_bar"
-        tools:context=".MapsActivity" />
+        tools:context=".view.MapsActivity" />
 
 </RelativeLayout>
