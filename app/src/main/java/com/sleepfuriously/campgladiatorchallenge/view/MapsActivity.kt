@@ -6,18 +6,14 @@ import android.location.Address
 import android.location.Geocoder
 import android.location.Location
 import android.os.Bundle
+import android.os.PersistableBundle
 import android.util.Log
 import android.view.View
-import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import com.android.volley.Request
-import com.android.volley.Response
-import com.android.volley.toolbox.StringRequest
-import com.android.volley.toolbox.Volley
 import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.*
 import com.google.android.gms.maps.*
@@ -25,11 +21,8 @@ import com.google.android.gms.maps.model.*
 import com.google.android.libraries.places.api.Places
 import com.google.android.libraries.places.api.net.PlacesClient
 import com.sleepfuriously.campgladiatorchallenge.R
-import com.sleepfuriously.campgladiatorchallenge.model.CGDatum
 import com.sleepfuriously.campgladiatorchallenge.model.CGLocation
-import com.sleepfuriously.campgladiatorchallenge.model.CGTopLevel
 import com.sleepfuriously.campgladiatorchallenge.presenter.Presenter
-import org.json.JSONObject
 import java.io.IOException
 
 
@@ -46,12 +39,15 @@ class MapsActivity : AppCompatActivity(),
     //  KEYS
     private val CAMERA_POS_KEY = "camera_pos_key"
     private val LOCATION_KEY = "location_key"
+    private val ZOOM_KEY = "zoom_key"
 
     private val DEFAULT_ZOOM = 13f
 
-    private val PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION = 1
-
     private val MAX_LOC_ENTRIES = 5;
+
+    private val DEFAULT_REQUEST_INTERVAL: Long = 10000
+
+    private val DEFAULT_FAST_REQUEST_INTERVAL: Long = 5000
 
 
     companion object {
@@ -59,8 +55,6 @@ class MapsActivity : AppCompatActivity(),
 
         /** request code passed to onActivityResult() */
         private const val REQUEST_CHECK_SETTINGS = 2
-
-//        public const val TEST_URL = "https://stagingapi.campgladiator.com/api/v2/places/searchbydistance?lat=30.406991&lon=-97.720310&radius=25"
     }
 
 
@@ -82,6 +76,8 @@ class MapsActivity : AppCompatActivity(),
     private lateinit var mMap: GoogleMap
 
     private var mCameraPos: CameraPosition? = null
+
+    private var mZoom: Float = DEFAULT_ZOOM
 
     /** entrypoint to Places api */
     private lateinit var mPlacesClient: PlacesClient;
@@ -133,11 +129,12 @@ class MapsActivity : AppCompatActivity(),
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-//        // Retrieve location and camera position from saved instance state.
-//        if (savedInstanceState != null) {
-//            mLastLocation = savedInstanceState.getParcelable(LOCATION_KEY)
-//            mCameraPos = savedInstanceState.getParcelable(CAMERA_POS_KEY)
-//        }
+        // Retrieve location and camera position from saved instance state.
+        if (savedInstanceState != null) {
+            mZoom = savedInstanceState.getFloat(ZOOM_KEY)
+            mLastLocation = savedInstanceState.getParcelable<Location>(LOCATION_KEY) as Location
+            mCameraPos = savedInstanceState.getParcelable(CAMERA_POS_KEY)
+        }
 
         if (checkLocPermissions() == false) {
             return
@@ -165,10 +162,13 @@ class MapsActivity : AppCompatActivity(),
 
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
+        /** callback when location results come in. Will occur periodically. */
         mLocationCallback = object : LocationCallback() {
-            override fun onLocationResult(p0: LocationResult) {
-                super.onLocationResult(p0)
-                mLastLocation = p0.lastLocation
+            override fun onLocationResult(locationResult: LocationResult) {
+                super.onLocationResult(locationResult)
+//                Log.d(TAG, "mLocationCallback.onLocationResult()")
+
+                mLastLocation = locationResult.lastLocation
                 placeMarkerOnMap(LatLng(mLastLocation.latitude, mLastLocation.longitude))
             }
         }
@@ -187,10 +187,22 @@ class MapsActivity : AppCompatActivity(),
     }
 
 
+    /**
+     * A chance to save
+     */
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        Log.d(TAG, "onSaveInstanceState() called")
+
+        outState.putParcelable(LOCATION_KEY, mLastLocation)
+        outState.putParcelable(CAMERA_POS_KEY, mCameraPos)
+        outState.putFloat(ZOOM_KEY, mMap.cameraPosition.zoom)
+    }
+
 
     private fun locationCallbackSuccess(location: LatLng,
-                               zoomLevel: Float,
-                               dataList: List<CGLocation>) {
+                                        zoomLevel: Float,
+                                        dataList: List<CGLocation>) {
 
         Log.d(TAG, "volleyCallback occured with ${dataList.size} locations")
         disableProgressUI()
@@ -209,7 +221,7 @@ class MapsActivity : AppCompatActivity(),
         Log.d(TAG, "requestLocations() start")
 
         val presenter = Presenter(this)
-        presenter.requestLocations(mDefaultLocation, 12.0f,
+        presenter.requestLocations(mDefaultLocation, mZoom,
             this::locationCallbackSuccess,
             this::locationCallbackError)
 
@@ -304,14 +316,14 @@ class MapsActivity : AppCompatActivity(),
 
 
     /**
-     * Creates an asynchronous location request.  Uses a listener that when
-     * successful calls [startLocationUpdates].
+     * Creates an asynchronous location request.
+     * Results are handled here in lambda functions.
      */
     private fun createLocationRequest() {
 
         mLocationRequest = LocationRequest()
-        mLocationRequest.interval = 10000
-        mLocationRequest.fastestInterval = 5000
+        mLocationRequest.interval = DEFAULT_REQUEST_INTERVAL
+        mLocationRequest.fastestInterval = DEFAULT_FAST_REQUEST_INTERVAL
         mLocationRequest.priority = LocationRequest.PRIORITY_HIGH_ACCURACY
 
         val builder = LocationSettingsRequest.Builder()
@@ -427,7 +439,7 @@ class MapsActivity : AppCompatActivity(),
                 val currentLatLng = LatLng(location.latitude, location.longitude)
                 placeMarkerOnMap(currentLatLng) // add our current location marker
 
-                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 12f))
+                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, mZoom))
             }
         }
 
