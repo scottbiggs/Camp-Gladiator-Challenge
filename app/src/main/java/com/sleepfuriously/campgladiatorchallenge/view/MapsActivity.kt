@@ -6,7 +6,6 @@ import android.location.Address
 import android.location.Geocoder
 import android.location.Location
 import android.os.Bundle
-import android.os.PersistableBundle
 import android.util.Log
 import android.view.View
 import android.widget.ProgressBar
@@ -21,7 +20,7 @@ import com.google.android.gms.maps.model.*
 import com.google.android.libraries.places.api.Places
 import com.google.android.libraries.places.api.net.PlacesClient
 import com.sleepfuriously.campgladiatorchallenge.R
-import com.sleepfuriously.campgladiatorchallenge.model.CGLocation
+import com.sleepfuriously.campgladiatorchallenge.model.CGDatum
 import com.sleepfuriously.campgladiatorchallenge.presenter.Presenter
 import java.io.IOException
 
@@ -98,6 +97,8 @@ class MapsActivity : AppCompatActivity(),
     /** stores the last marker so it can be deleted */
     private var mLastMarker: Marker? = null
 
+    /** holds list of all markers that are currently in the map */
+    private var mCurrentMarkers: ArrayList<Marker> = ArrayList()
 
     /** default location (sydney). used when location permission is not granted */
     private var mDefaultLocation = LatLng(-33.8523341, 151.2106085)
@@ -169,7 +170,7 @@ class MapsActivity : AppCompatActivity(),
 //                Log.d(TAG, "mLocationCallback.onLocationResult()")
 
                 mLastLocation = locationResult.lastLocation
-                placeMarkerOnMap(LatLng(mLastLocation.latitude, mLastLocation.longitude))
+                placeMyLocationMarkerOnMap(LatLng(mLastLocation.latitude, mLastLocation.longitude))
             }
         }
 
@@ -194,15 +195,34 @@ class MapsActivity : AppCompatActivity(),
     }
 
 
-    private fun locationCallbackSuccess(location: LatLng,
-                                        zoomLevel: Float,
-                                        dataList: List<CGLocation>) {
+    private fun locationCallbackSuccess(dataList: List<CGDatum>) {
 
-        Log.d(TAG, "volleyCallback occured with ${dataList.size} locations")
+        Log.d(TAG, "locationCallbackSuccess start with ${dataList.size} locations")
 
         // todo: parse the dataList and add it to the map (but only add new items)
+//        for (cgDatum in dataList) {
+//            val lat = cgDatum.latitude
+//            val long = cgDatum.longitude
+//            if ((lat != null) && (long != null)) {
+//                val latLng = LatLng(lat, long)
+//                placeMarkerOnMap(latLng, BitmapDescriptorFactory.HUE_GREEN)
+//            }
+//        }
+
+        // do it all at once
+        val locList: ArrayList<LatLng> = ArrayList()
+        for (cgDatum in dataList) {
+            val lat = cgDatum.latitude
+            val long = cgDatum.longitude
+
+            if ((lat != null) && (long != null)) {
+                locList.add(LatLng(lat, long))
+            }
+        }
+        placeMarkersOnMap(locList, BitmapDescriptorFactory.HUE_GREEN)
 
         disableProgressUI()
+        Log.d(TAG, "locationCallbackSuccess done")
     }
 
     private fun locationCallbackError(errStr: String) {
@@ -271,10 +291,60 @@ class MapsActivity : AppCompatActivity(),
 */
 
     /**
+     * Adds a bunch of markers at once.
+     *
+     * @param   locs    An array of locations to add
+     *
+     * @param   hue     The color to draw for these markers
+     */
+    private fun placeMarkersOnMap(locs: ArrayList<LatLng>, hue: Float) {
+
+        // create a marker object using the given location
+        val markerOptions = MarkerOptions()
+        markerOptions.icon(BitmapDescriptorFactory.defaultMarker(hue))
+        markerOptions.draggable(false)
+
+        for (loc in locs) {
+            markerOptions.position(loc)
+            mMap.addMarker(markerOptions)
+        }
+    }
+
+
+    /**
      * Adds a marker on the map at the given location.  If there's a previous
      * marker, it's removed.
      */
-    private fun placeMarkerOnMap(location: LatLng) {
+    private fun placeMarkerOnMap(location: LatLng, hue: Float) {
+        // create a marker object using the given location
+        val markerOptions = MarkerOptions().position(location)
+
+        // use custom marker
+//        val bitmap = BitmapFactory.decodeResource(resources, R.mipmap.ic_user_location)
+//        val bitmapDescriptor = BitmapDescriptorFactory.fromBitmap(bitmap)
+//        markerOptions.icon(bitmapDescriptor)
+
+        // change color from the default red
+//        markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
+        markerOptions.icon(BitmapDescriptorFactory.defaultMarker(hue))
+
+        markerOptions.draggable(false)  // prevent users from playing with it
+
+        // display the address with this marker
+        val addressStr = getAddress(location)
+        markerOptions.title(addressStr)
+
+        // add this marker to the map
+//        mLastMarker = mMap.addMarker(markerOptions)
+        mCurrentMarkers.add(mMap.addMarker(markerOptions))
+    }
+
+
+    /**
+     * Adds a special marker on the map at the given location, representing
+     * the user's position.  If there's a previous marker, it's removed.
+     */
+    private fun placeMyLocationMarkerOnMap(location: LatLng) {
         // create a marker object using the given location
         val markerOptions = MarkerOptions().position(location)
 
@@ -442,7 +512,7 @@ class MapsActivity : AppCompatActivity(),
             if (location != null) {
                 mLastLocation = location
                 val currentLatLng = LatLng(location.latitude, location.longitude)
-                placeMarkerOnMap(currentLatLng) // add our current location marker
+                placeMyLocationMarkerOnMap(currentLatLng) // add our current location marker
 
                 mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, mZoom))
                 requestLocations()

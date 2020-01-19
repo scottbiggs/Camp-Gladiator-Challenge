@@ -8,9 +8,7 @@ import com.android.volley.Response
 import com.android.volley.toolbox.JsonObjectRequest
 import com.android.volley.toolbox.Volley
 import com.google.android.gms.maps.model.LatLng
-import com.google.gson.JsonArray
 import com.sleepfuriously.campgladiatorchallenge.model.CGDatum
-import com.sleepfuriously.campgladiatorchallenge.model.CGLocation
 import com.sleepfuriously.campgladiatorchallenge.model.CGTopLevel
 import org.json.JSONArray
 
@@ -27,6 +25,7 @@ class Presenter constructor(ctx: Context){
     //-----------------------
 
     public val TEST_URL = "https://stagingapi.campgladiator.com/api/v2/places/searchbydistance?lat=30.406991&lon=-97.720310&radius=25"
+//    public val TEST_URL = "https://stagingapi.campgladiator.com/api/v2/places/searchbydistance?lat=30.406991&lon=-97.720310&radius=2"
 
     private val TAG = "biggs-Presenter"
 
@@ -65,9 +64,19 @@ class Presenter constructor(ctx: Context){
     //  functions
     //-----------------------
 
+    /**
+     * Request to acquire a list of CGDatums from the CG server.
+     *
+     * @param   location    The location to center the requests around
+     *
+     * @param   successCallback     When a successful request is made, the list
+     *                              of CGDatums will be returned here.
+     *
+     * @param   errorCallback   On an error, this will be called with an error msg.
+     */
     fun requestLocations(location: LatLng,
-                         zoom: Float,
-                         successCallback: (LatLng, Float, List<CGLocation>) -> Unit,
+                         radius: Float,
+                         successCallback: (List<CGDatum>) -> Unit,
                          errorCallback: (String) -> Unit ) {
 
         val jsonObjectRequest = JsonObjectRequest(Request.Method.GET, TEST_URL, null,
@@ -81,14 +90,14 @@ class Presenter constructor(ctx: Context){
                 }
                 else {
                     // make list
-                    val locationList: ArrayList<CGLocation> = ArrayList()
+                    val locationList: ArrayList<CGDatum> = ArrayList()
                     for (i in 0 until jsonArrayLocations.length()) {
                         val locJsonObj = jsonArrayLocations.getJSONObject(i)
-                        val cgLocation = CGLocation(locJsonObj)
-                        locationList.add(cgLocation)
+                        val cgDatum = CGDatum(locJsonObj)
+                        locationList.add(cgDatum)
                     }
 
-                    successCallback(location, zoom, locationList)
+                    successCallback(locationList)
                 }
             },
 

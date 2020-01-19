@@ -1,5 +1,6 @@
 package com.sleepfuriously.campgladiatorchallenge.model
 
+import android.util.Log
 import org.json.JSONObject
 
 /**
@@ -10,6 +11,8 @@ class CGDatum {
     //------------------
     //  constants
     //------------------
+
+    private val TAG = "CGDatum"
 
     companion object {
         public const val PLACE_ID_KEY = "placeID"
@@ -28,7 +31,7 @@ class CGDatum {
         public const val PLACE_LON_KEY = "placeLongitude"
         public const val PLACE_ACTIVE_KEY = "placeActive"
         public const val DIST_KEY = "distance"
-        public const val LOCATION_KEY = "location_key"  // doesn't match the name for obvious reasons
+        public const val LOCATION_KEY = "location"
     }
 
     //------------------
@@ -47,11 +50,11 @@ class CGDatum {
     public var placeState: String? = null
     public var placeZipcode: String? = null
     public var placeCountry: String? = null
-    public var placeLatitude: Double? = null
-    public var placeLongitude: Double? = null
+    public var latitude: Double? = null
+    public var longitude: Double? = null
     public var placeActive: Int? = null
     public var distance: Double? = null
-    public var locationKey: CGLocation? = null
+    public var locations: ArrayList<CGLocation> = ArrayList<CGLocation>()
 
 
     //------------------
@@ -74,7 +77,7 @@ class CGDatum {
                 _placeLon: Double?,
                 _placeActive: Int?,
                 _dist: Double?,
-                _locKey: CGLocation?) {
+                _locations: ArrayList<CGLocation>?) {
         placeID = _placeID
         regionID = _regionID
         subRegionID = _subRegionID
@@ -87,11 +90,16 @@ class CGDatum {
         placeState = _placeState
         placeZipcode = _placeZipcode
         placeCountry = _placeCountry
-        placeLatitude = _placeLat
-        placeLongitude = _placeLon
+        latitude = _placeLat
+        longitude = _placeLon
         placeActive = _placeActive
         distance = _dist
-        locationKey = _locKey
+        if (_locations == null) {
+            locations = ArrayList<CGLocation>()
+        }
+        else {
+            locations = _locations
+        }
     }
 
     constructor(jsonObject: JSONObject) {
@@ -107,13 +115,16 @@ class CGDatum {
         placeState = jsonObject.getString(PLACE_STATE_KEY)
         placeZipcode = jsonObject.getString(PLACE_ZIP_KEY)
         placeCountry = jsonObject.getString(PLACE_COUNTRY_KEY)
-        placeLatitude = jsonObject.getDouble(PLACE_LAT_KEY)
-        placeLongitude = jsonObject.getDouble(PLACE_LON_KEY)
+        latitude = jsonObject.getDouble(PLACE_LAT_KEY)
+        longitude = jsonObject.getDouble(PLACE_LON_KEY)
         placeActive = jsonObject.getInt(PLACE_ACTIVE_KEY)
         distance = jsonObject.getDouble(DIST_KEY)
-        locationKey = CGLocation(
-            jsonObject.getJSONObject(LOCATION_KEY)
-        )
+
+        val jsonArray = jsonObject.getJSONArray(LOCATION_KEY)
+        for (i in 0 until jsonArray.length()) {
+            val cgLocation = CGLocation(jsonArray.getJSONObject(i))
+            locations.add(cgLocation)
+        }
     }
 
 }
