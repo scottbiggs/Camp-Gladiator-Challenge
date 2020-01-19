@@ -50,8 +50,8 @@ class CGDatum {
     public var placeState: String? = null
     public var placeZipcode: String? = null
     public var placeCountry: String? = null
-    public var latitude: Double? = null
-    public var longitude: Double? = null
+    public var latitude: Double = 0.0
+    public var longitude: Double = 0.0
     public var placeActive: Int? = null
     public var distance: Double? = null
     public var locations: ArrayList<CGLocation> = ArrayList<CGLocation>()
@@ -73,8 +73,8 @@ class CGDatum {
                 _placeState: String?,
                 _placeZipcode: String?,
                 _placeCountry: String?,
-                _placeLat: Double?,
-                _placeLon: Double?,
+                _placeLat: Double,
+                _placeLon: Double,
                 _placeActive: Int?,
                 _dist: Double?,
                 _locations: ArrayList<CGLocation>?) {

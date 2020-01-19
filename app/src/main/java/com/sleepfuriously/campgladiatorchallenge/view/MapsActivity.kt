@@ -98,7 +98,7 @@ class MapsActivity : AppCompatActivity(),
     private var mLastMarker: Marker? = null
 
     /** holds list of all markers that are currently in the map */
-    private var mCurrentMarkers: ArrayList<Marker> = ArrayList()
+    private var mCurrentMarkers: ArrayList<CGDatum> = ArrayList()
 
     /** default location (sydney). used when location permission is not granted */
     private var mDefaultLocation = LatLng(-33.8523341, 151.2106085)
@@ -197,29 +197,27 @@ class MapsActivity : AppCompatActivity(),
 
     private fun locationCallbackSuccess(dataList: List<CGDatum>) {
 
-        Log.d(TAG, "locationCallbackSuccess start with ${dataList.size} locations")
+//        Log.d(TAG, "locationCallbackSuccess start with ${dataList.size} locations")
 
-        // todo: parse the dataList and add it to the map (but only add new items)
-//        for (cgDatum in dataList) {
-//            val lat = cgDatum.latitude
-//            val long = cgDatum.longitude
-//            if ((lat != null) && (long != null)) {
-//                val latLng = LatLng(lat, long)
-//                placeMarkerOnMap(latLng, BitmapDescriptorFactory.HUE_GREEN)
-//            }
-//        }
-
-        // do it all at once
-        val locList: ArrayList<LatLng> = ArrayList()
+        // parse the dataList and add it to the map (but only add new items)
         for (cgDatum in dataList) {
             val lat = cgDatum.latitude
             val long = cgDatum.longitude
 
-            if ((lat != null) && (long != null)) {
-                locList.add(LatLng(lat, long))
+            // only add if it's not already in our list
+            var found = false
+            for (inList in mCurrentMarkers) {
+                if ((inList.latitude == lat) && (inList.longitude == long)) {
+                    found = true
+                    break
+                }
+            }
+            if (!found) {
+                mCurrentMarkers.add(cgDatum)
             }
         }
-        placeMarkersOnMap(locList, BitmapDescriptorFactory.HUE_GREEN)
+
+        placeMarkersOnMap(mCurrentMarkers, BitmapDescriptorFactory.HUE_GREEN)
 
         disableProgressUI()
         Log.d(TAG, "locationCallbackSuccess done")
@@ -297,15 +295,17 @@ class MapsActivity : AppCompatActivity(),
      *
      * @param   hue     The color to draw for these markers
      */
-    private fun placeMarkersOnMap(locs: ArrayList<LatLng>, hue: Float) {
+    private fun placeMarkersOnMap(locs: ArrayList<CGDatum>, hue: Float) {
 
-        // create a marker object using the given location
-        val markerOptions = MarkerOptions()
-        markerOptions.icon(BitmapDescriptorFactory.defaultMarker(hue))
-        markerOptions.draggable(false)
+        // precalc this because it's always the same and rather slow to init
+        val bitmapDescriptor = BitmapDescriptorFactory.defaultMarker(hue)
 
         for (loc in locs) {
-            markerOptions.position(loc)
+            val markerOptions = MarkerOptions()
+                .icon(bitmapDescriptor)
+                .draggable(false)
+                .position(LatLng(loc.latitude, loc.longitude))
+                .title(loc.placeName)
             mMap.addMarker(markerOptions)
         }
     }
@@ -319,13 +319,7 @@ class MapsActivity : AppCompatActivity(),
         // create a marker object using the given location
         val markerOptions = MarkerOptions().position(location)
 
-        // use custom marker
-//        val bitmap = BitmapFactory.decodeResource(resources, R.mipmap.ic_user_location)
-//        val bitmapDescriptor = BitmapDescriptorFactory.fromBitmap(bitmap)
-//        markerOptions.icon(bitmapDescriptor)
-
         // change color from the default red
-//        markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
         markerOptions.icon(BitmapDescriptorFactory.defaultMarker(hue))
 
         markerOptions.draggable(false)  // prevent users from playing with it
@@ -335,8 +329,7 @@ class MapsActivity : AppCompatActivity(),
         markerOptions.title(addressStr)
 
         // add this marker to the map
-//        mLastMarker = mMap.addMarker(markerOptions)
-        mCurrentMarkers.add(mMap.addMarker(markerOptions))
+        mMap.addMarker(markerOptions)
     }
 
 
