@@ -7,18 +7,18 @@ import org.json.JSONObject
  * Describes the Location data for the CG server data
  */
 
-public class CGLocation {
+class CGLocation {
 
     //------------------
     //  constants
     //------------------
 
     companion object {
-        public const val ID_KEY = "ID"
+        const val ID_KEY = "ID"
 
         // todo
 
-        public const val LOCATION_NAME_KEY = "locationName"
+        const val LOCATION_NAME_KEY = "locationName"
 
         // todo
     }
@@ -27,8 +27,8 @@ public class CGLocation {
     //  data
     //------------------
 
-    public lateinit var id: String
-    public lateinit var locationName: String
+    lateinit var id: String
+    lateinit var locationName: String
 
 
 
@@ -36,6 +36,7 @@ public class CGLocation {
     //  functions
     //------------------
 
+    @Suppress("unused")
     constructor(_id: String, _locationName: String) {
         id = _id
         locationName = _locationName

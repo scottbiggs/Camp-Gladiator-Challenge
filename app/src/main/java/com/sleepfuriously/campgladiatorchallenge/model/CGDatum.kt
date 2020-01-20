@@ -15,52 +15,53 @@ class CGDatum {
     private val TAG = "CGDatum"
 
     companion object {
-        public const val PLACE_ID_KEY = "placeID"
-        public const val REGION_ID_KEY = "regionID"
-        public const val REGION_SUB_ID_KEY = "subRegionID"
-        public const val PLACE_NAME_KEY = "placeName"
-        public const val PLACE_DESC_KEY = "placeDesc"
-        public const val PLACE_ADD_INFO_KEY = "placeAdditionalInfo"
-        public const val PLACE_ADD1_KEY = "placeAddress1"
-        public const val PLACE_ADD2_KEY = "placeAddress2"
-        public const val PLACE_CITY_KEY = "placeCity"
-        public const val PLACE_STATE_KEY = "placeState"
-        public const val PLACE_ZIP_KEY = "placeZipcode"
-        public const val PLACE_COUNTRY_KEY = "placeCountry"
-        public const val PLACE_LAT_KEY = "placeLatitude"
-        public const val PLACE_LON_KEY = "placeLongitude"
-        public const val PLACE_ACTIVE_KEY = "placeActive"
-        public const val DIST_KEY = "distance"
-        public const val LOCATION_KEY = "location"
+        const val PLACE_ID_KEY = "placeID"
+        const val REGION_ID_KEY = "regionID"
+        const val REGION_SUB_ID_KEY = "subRegionID"
+        const val PLACE_NAME_KEY = "placeName"
+        const val PLACE_DESC_KEY = "placeDesc"
+        const val PLACE_ADD_INFO_KEY = "placeAdditionalInfo"
+        const val PLACE_ADD1_KEY = "placeAddress1"
+        const val PLACE_ADD2_KEY = "placeAddress2"
+        const val PLACE_CITY_KEY = "placeCity"
+        const val PLACE_STATE_KEY = "placeState"
+        const val PLACE_ZIP_KEY = "placeZipcode"
+        const val PLACE_COUNTRY_KEY = "placeCountry"
+        const val PLACE_LAT_KEY = "placeLatitude"
+        const val PLACE_LON_KEY = "placeLongitude"
+        const val PLACE_ACTIVE_KEY = "placeActive"
+        const val DIST_KEY = "distance"
+        const val LOCATION_KEY = "location"
     }
 
     //------------------
     //  data
     //------------------
 
-    public var placeID: String? = null
-    public var regionID: String? = null
-    public var subRegionID: String? = null
-    public var placeName: String? = null
-    public var placeDesc: String? = null
-    public var placeAdditionalInfo: String? = null
-    public var placeAddress1: String? = null
-    public var placeAddress2: String? = null
-    public var placeCity: String? = null
-    public var placeState: String? = null
-    public var placeZipcode: String? = null
-    public var placeCountry: String? = null
-    public var latitude: Double = 0.0
-    public var longitude: Double = 0.0
-    public var placeActive: Int? = null
-    public var distance: Double? = null
-    public var locations: ArrayList<CGLocation> = ArrayList<CGLocation>()
+    var placeID: String? = null
+    var regionID: String? = null
+    var subRegionID: String? = null
+    var placeName: String? = null
+    var placeDesc: String? = null
+    var placeAdditionalInfo: String? = null
+    var placeAddress1: String? = null
+    var placeAddress2: String? = null
+    var placeCity: String? = null
+    var placeState: String? = null
+    var placeZipcode: String? = null
+    var placeCountry: String? = null
+    var latitude: Double = 0.0
+    var longitude: Double = 0.0
+    var placeActive: Int? = null
+    var distance: Double? = null
+    var locations: ArrayList<CGLocation> = ArrayList<CGLocation>()
 
 
     //------------------
     //  functions
     //------------------
 
+    @Suppress("unused")
     constructor(_placeID: String?,
                 _regionID: String?,
                 _subRegionID: String?,

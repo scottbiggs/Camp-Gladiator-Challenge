@@ -36,14 +36,7 @@ class MapsActivity : AppCompatActivity(),
 
     private val TAG = "biggs-MapsActivity"
 
-    //  KEYS
-    private val CAMERA_POS_KEY = "camera_pos_key"
-    private val LOCATION_KEY = "location_key"
-    private val ZOOM_KEY = "zoom_key"
-
     private val DEFAULT_ZOOM = 13f
-
-    private val MAX_LOC_ENTRIES = 5;
 
     private val DEFAULT_REQUEST_INTERVAL: Long = 10000
 
@@ -75,12 +68,10 @@ class MapsActivity : AppCompatActivity(),
     /** the primary data for this app */
     private lateinit var mMap: GoogleMap
 
-    private var mCameraPos: CameraPosition? = null
-
     private var mZoom: Float = DEFAULT_ZOOM
 
     /** entrypoint to Places api */
-    private lateinit var mPlacesClient: PlacesClient;
+    private lateinit var mPlacesClient: PlacesClient
 
     /** entypoint to Fused Loc Provider */
     private lateinit var mFusedLocationClient: FusedLocationProviderClient
@@ -100,18 +91,6 @@ class MapsActivity : AppCompatActivity(),
 
     /** holds list of all markers that are currently in the map */
     private var mCurrentMarkers: ArrayList<CGDatum> = ArrayList()
-
-    /** default location (sydney). used when location permission is not granted */
-    private var mDefaultLocation = LatLng(-33.8523341, 151.2106085)
-
-    private val mLocationPermissionGranted = false
-
-    // for selecting a current place
-
-    private lateinit var mLikelyPlaceNames: Array<String>
-    private lateinit var mLikelyPlaceAddresses: Array<String>
-//    private lateinit var mLikelyAttribs: List<>
-    private lateinit var mLikelyPlaceLatLng: Array<LatLng>
 
     /**
      * Progress UI is only invisible when this number is 0.
@@ -133,13 +112,6 @@ class MapsActivity : AppCompatActivity(),
 
         // Lock device in current orientation
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED
-
-//        // Retrieve location and camera position from saved instance state.
-//        if (savedInstanceState != null) {
-//            mZoom = savedInstanceState.getFloat(ZOOM_KEY)
-//            mLastLocation = savedInstanceState.getParcelable<Location>(LOCATION_KEY) as Location
-//            mCameraPos = savedInstanceState.getParcelable(CAMERA_POS_KEY)
-//        }
 
         if (checkLocPermissions() == false) {
             return
@@ -184,7 +156,6 @@ class MapsActivity : AppCompatActivity(),
         mLocationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
                 super.onLocationResult(locationResult)
-//                Log.d(TAG, "mLocationCallback.onLocationResult()")
 
                 mLastLocation = locationResult.lastLocation
                 placeMyLocationMarkerOnMap(LatLng(mLastLocation.latitude, mLastLocation.longitude))
@@ -197,19 +168,6 @@ class MapsActivity : AppCompatActivity(),
         Places.initialize(this, getString(R.string.google_maps_key))
         mPlacesClient = Places.createClient(this)
     }
-
-
-//    /**
-//     * A chance to save data
-//     */
-//    override fun onSaveInstanceState(outState: Bundle) {
-//        super.onSaveInstanceState(outState)
-//        Log.d(TAG, "onSaveInstanceState() called")
-//
-//        outState.putParcelable(LOCATION_KEY, mLastLocation)
-//        outState.putParcelable(CAMERA_POS_KEY, mCameraPos)
-//        outState.putFloat(ZOOM_KEY, mMap.cameraPosition.zoom)
-//    }
 
 
     /**
@@ -517,7 +475,6 @@ class MapsActivity : AppCompatActivity(),
      * CG locations.
      */
     private fun locationCallbackSuccess(dataList: List<CGDatum>) {
-
 //        Log.d(TAG, "locationCallbackSuccess start with ${dataList.size} locations")
 
         // parse the dataList and add it to the map (but only add new items)

@@ -9,7 +9,6 @@ import com.android.volley.toolbox.JsonObjectRequest
 import com.android.volley.toolbox.Volley
 import com.google.android.gms.maps.model.LatLng
 import com.sleepfuriously.campgladiatorchallenge.model.CGDatum
-import com.sleepfuriously.campgladiatorchallenge.model.CGTopLevel
 import org.json.JSONArray
 
 /**
@@ -26,8 +25,7 @@ class Presenter constructor(ctx: Context){
 
     private val TAG = "biggs-Presenter"
 
-    private val TEST_URL = "https://stagingapi.campgladiator.com/api/v2/places/searchbydistance?lat=30.406991&lon=-97.720310&radius=25"
-//    public val TEST_URL = "https://stagingapi.campgladiator.com/api/v2/places/searchbydistance?lat=30.406991&lon=-97.720310&radius=2"
+//    private val TEST_URL = "https://stagingapi.campgladiator.com/api/v2/places/searchbydistance?lat=30.406991&lon=-97.720310&radius=25"
 
     private val BASE_URL = "https://stagingapi.campgladiator.com/api/v2/places/searchbydistance?"
 
