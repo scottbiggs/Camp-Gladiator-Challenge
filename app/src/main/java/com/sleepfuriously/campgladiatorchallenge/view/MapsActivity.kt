@@ -1,6 +1,7 @@
 package com.sleepfuriously.campgladiatorchallenge.view
 
 import android.content.IntentSender
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.location.Address
 import android.location.Geocoder
@@ -130,12 +131,15 @@ class MapsActivity : AppCompatActivity(),
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Retrieve location and camera position from saved instance state.
-        if (savedInstanceState != null) {
-            mZoom = savedInstanceState.getFloat(ZOOM_KEY)
-            mLastLocation = savedInstanceState.getParcelable<Location>(LOCATION_KEY) as Location
-            mCameraPos = savedInstanceState.getParcelable(CAMERA_POS_KEY)
-        }
+        // Lock device in current orientation
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED
+
+//        // Retrieve location and camera position from saved instance state.
+//        if (savedInstanceState != null) {
+//            mZoom = savedInstanceState.getFloat(ZOOM_KEY)
+//            mLastLocation = savedInstanceState.getParcelable<Location>(LOCATION_KEY) as Location
+//            mCameraPos = savedInstanceState.getParcelable(CAMERA_POS_KEY)
+//        }
 
         if (checkLocPermissions() == false) {
             return
@@ -174,7 +178,7 @@ class MapsActivity : AppCompatActivity(),
             }
         }
 
-        createLocationRequest()
+        createPeriodicLocationRequest()
 
         // construct a Places client // todo: is this used yet?
         Places.initialize(this, getString(R.string.google_maps_key))
@@ -182,111 +186,37 @@ class MapsActivity : AppCompatActivity(),
     }
 
 
+//    /**
+//     * A chance to save data
+//     */
+//    override fun onSaveInstanceState(outState: Bundle) {
+//        super.onSaveInstanceState(outState)
+//        Log.d(TAG, "onSaveInstanceState() called")
+//
+//        outState.putParcelable(LOCATION_KEY, mLastLocation)
+//        outState.putParcelable(CAMERA_POS_KEY, mCameraPos)
+//        outState.putFloat(ZOOM_KEY, mMap.cameraPosition.zoom)
+//    }
+
+
     /**
-     * A chance to save
+     * Initiates server request for locations to add to the map.
+     * Results can be found at [locationCallbackSuccess] and
+     * [locationCallbackError].
      */
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        Log.d(TAG, "onSaveInstanceState() called")
-
-        outState.putParcelable(LOCATION_KEY, mLastLocation)
-        outState.putParcelable(CAMERA_POS_KEY, mCameraPos)
-        outState.putFloat(ZOOM_KEY, mMap.cameraPosition.zoom)
-    }
-
-
-    private fun locationCallbackSuccess(dataList: List<CGDatum>) {
-
-//        Log.d(TAG, "locationCallbackSuccess start with ${dataList.size} locations")
-
-        // parse the dataList and add it to the map (but only add new items)
-        for (cgDatum in dataList) {
-            val lat = cgDatum.latitude
-            val long = cgDatum.longitude
-
-            // only add if it's not already in our list
-            var found = false
-            for (inList in mCurrentMarkers) {
-                if ((inList.latitude == lat) && (inList.longitude == long)) {
-                    found = true
-                    break
-                }
-            }
-            if (!found) {
-                mCurrentMarkers.add(cgDatum)
-            }
-        }
-
-        placeMarkersOnMap(mCurrentMarkers, BitmapDescriptorFactory.HUE_GREEN)
-
-        disableProgressUI()
-        Log.d(TAG, "locationCallbackSuccess done")
-    }
-
-    private fun locationCallbackError(errStr: String) {
-        Log.e(TAG, "error in data callback")
-        Toast.makeText(this, "Error receiving data", Toast.LENGTH_LONG).show()
-        disableProgressUI()
-    }
-
-
-
-    private fun requestLocations() {
+    private fun requestCGLocations() {
 
         Log.d(TAG, "requestLocations() start")
 
         val presenter = Presenter(this)
-//        if (::mLastLocation.isInitialized) {
             presenter.requestLocations(LatLng(mLastLocation.latitude, mLastLocation.longitude),
                 mZoom,
                 this::locationCallbackSuccess,
                 this::locationCallbackError)
-//        }
-//        else {
-//        presenter.requestLocations(mDefaultLocation, mZoom,
-//                this::locationCallbackSuccess,
-//                this::locationCallbackError)
-//        }
 
         enableProgressUI()
     }
 
-/*
-    private fun volleyLoadData() {
-
-        val presenter = Presenter(this)
-        presenter.getTopLevel(volleyCallback())
-
-
-
-
-        val queue = Volley.newRequestQueue(this)
-
-        val stringRequest = StringRequest(Request.Method.GET,
-            TEST_URL,
-            Response.Listener { response ->
-                val jsonObject = JSONObject(response.toString())
-                val topLevelJsonObject = CGTopLevel(jsonObject)
-
-                // just show the first bit of the response
-                Log.d(TAG, "response: ${response.substring(0, 250)}")
-
-                Log.d(TAG, "success = ${topLevelJsonObject.success}")
-                Log.d(TAG, "message = ${topLevelJsonObject.message}")
-
-
-                disableProgressUI()
-            },
-
-            Response.ErrorListener {
-                Log.e(TAG, "nope")
-                disableProgressUI()
-            })
-
-        queue.add(stringRequest)
-        enableProgressUI()
-    }
-*/
 
     /**
      * Adds a bunch of markers at once.
@@ -308,28 +238,6 @@ class MapsActivity : AppCompatActivity(),
                 .title(loc.placeName)
             mMap.addMarker(markerOptions)
         }
-    }
-
-
-    /**
-     * Adds a marker on the map at the given location.  If there's a previous
-     * marker, it's removed.
-     */
-    private fun placeMarkerOnMap(location: LatLng, hue: Float) {
-        // create a marker object using the given location
-        val markerOptions = MarkerOptions().position(location)
-
-        // change color from the default red
-        markerOptions.icon(BitmapDescriptorFactory.defaultMarker(hue))
-
-        markerOptions.draggable(false)  // prevent users from playing with it
-
-        // display the address with this marker
-        val addressStr = getAddress(location)
-        markerOptions.title(addressStr)
-
-        // add this marker to the map
-        mMap.addMarker(markerOptions)
     }
 
 
@@ -384,10 +292,10 @@ class MapsActivity : AppCompatActivity(),
 
 
     /**
-     * Creates an asynchronous location request.
-     * Results are handled here in lambda functions.
+     * Creates an asynchronous location request for the user's current location.
+     * These occur at specified intervals (approx) and are handled here in lambda functions.
      */
-    private fun createLocationRequest() {
+    private fun createPeriodicLocationRequest() {
 
         mLocationRequest = LocationRequest()
         mLocationRequest.interval = DEFAULT_REQUEST_INTERVAL
@@ -454,6 +362,11 @@ class MapsActivity : AppCompatActivity(),
     }
 
 
+    /**
+     * Signal to user that data is in transit.  May be called multiple
+     * times as long as there's a call to [disableProgressUI] for each
+     * call.
+     */
     @Synchronized
     private fun enableProgressUI() {
         Log.d(TAG, "enableProgressUI")
@@ -463,6 +376,11 @@ class MapsActivity : AppCompatActivity(),
         mProgressVisible++
     }
 
+    /**
+     * Removes any animations or layouts that indicate the app is
+     * waiting.  Will only disable the progress UI when the last
+     * pending wait is complete.
+     */
     @Synchronized
     private fun disableProgressUI() {
         Log.d(TAG, "disableProgressUI(), mProgressVisible is at $mProgressVisible")
@@ -508,7 +426,7 @@ class MapsActivity : AppCompatActivity(),
                 placeMyLocationMarkerOnMap(currentLatLng) // add our current location marker
 
                 mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, mZoom))
-                requestLocations()
+                requestCGLocations()
             }
         }
 
@@ -541,11 +459,49 @@ class MapsActivity : AppCompatActivity(),
      * User has clicked on a marker
      */
     override fun onMarkerClick(marker: Marker?): Boolean {
-
         return false
     }
 
 
+    /**
+     * Callback when server has successfully found data of
+     * CG locations.
+     */
+    private fun locationCallbackSuccess(dataList: List<CGDatum>) {
 
+//        Log.d(TAG, "locationCallbackSuccess start with ${dataList.size} locations")
+
+        // parse the dataList and add it to the map (but only add new items)
+        for (cgDatum in dataList) {
+            val lat = cgDatum.latitude
+            val long = cgDatum.longitude
+
+            // only add if it's not already in our list
+            var found = false
+            for (inList in mCurrentMarkers) {
+                if ((inList.latitude == lat) && (inList.longitude == long)) {
+                    found = true
+                    break
+                }
+            }
+            if (!found) {
+                mCurrentMarkers.add(cgDatum)
+            }
+        }
+
+        placeMarkersOnMap(mCurrentMarkers, BitmapDescriptorFactory.HUE_GREEN)
+
+        disableProgressUI()
+        Log.d(TAG, "locationCallbackSuccess done")
+    }
+
+    /**
+     * Callback when CG location request resulted in error.
+     */
+    private fun locationCallbackError(errStr: String) {
+        Log.e(TAG, "error in data callback")
+        Toast.makeText(this, "Error receiving data", Toast.LENGTH_LONG).show()
+        disableProgressUI()
+    }
 
 }
