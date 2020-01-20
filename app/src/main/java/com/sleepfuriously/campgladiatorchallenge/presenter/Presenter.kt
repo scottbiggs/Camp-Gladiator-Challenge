@@ -9,7 +9,6 @@ import com.android.volley.toolbox.JsonObjectRequest
 import com.android.volley.toolbox.Volley
 import com.google.android.gms.maps.model.LatLng
 import com.sleepfuriously.campgladiatorchallenge.model.CGDatum
-import com.sleepfuriously.campgladiatorchallenge.model.CGTopLevel
 import org.json.JSONArray
 
 /**
@@ -24,10 +23,24 @@ class Presenter constructor(ctx: Context){
     //  constants
     //-----------------------
 
-    public val TEST_URL = "https://stagingapi.campgladiator.com/api/v2/places/searchbydistance?lat=30.406991&lon=-97.720310&radius=25"
+    private val TAG = "biggs-Presenter"
+
+    private val TEST_URL = "https://stagingapi.campgladiator.com/api/v2/places/searchbydistance?lat=30.406991&lon=-97.720310&radius=25"
 //    public val TEST_URL = "https://stagingapi.campgladiator.com/api/v2/places/searchbydistance?lat=30.406991&lon=-97.720310&radius=2"
 
-    private val TAG = "biggs-Presenter"
+    private val BASE_URL = "https://stagingapi.campgladiator.com/api/v2/places/searchbydistance?"
+
+    /** use this to separate components of a URL request */
+    private val URL_SEPARATOR = "&"
+
+    /** prefix for latitude portion of URL */
+    private val URL_LAT = "lat="
+
+    /** prefix for longitude portion of URL */
+    private val URL_LONG = "lon="
+
+    /** prefix for radius portion of URL */
+    private val URL_RADIUS = "radius="
 
 
     //-----------------------
@@ -67,19 +80,28 @@ class Presenter constructor(ctx: Context){
     /**
      * Request to acquire a list of CGDatums from the CG server.
      *
-     * @param   location    The location to center the requests around
+     * @param   loc     The location to center the requests around
+     *
+     * @param   radius      Radius of location search
      *
      * @param   successCallback     When a successful request is made, the list
      *                              of CGDatums will be returned here.
      *
      * @param   errorCallback   On an error, this will be called with an error msg.
      */
-    fun requestLocations(location: LatLng,
+    fun requestLocations(loc: LatLng,
                          radius: Float,
                          successCallback: (List<CGDatum>) -> Unit,
                          errorCallback: (String) -> Unit ) {
 
-        val jsonObjectRequest = JsonObjectRequest(Request.Method.GET, TEST_URL, null,
+        Log.d(TAG, "requestLocations: loc = $loc, radius = $radius")
+
+        // construct url
+        val url = BASE_URL + URL_LAT + loc.latitude + URL_SEPARATOR +
+                URL_LONG + loc.longitude + URL_SEPARATOR +
+                URL_RADIUS + radius
+
+        val jsonObjectRequest = JsonObjectRequest(Request.Method.GET, url, null,
             Response.Listener { response ->
                 Log.d(TAG, "success, processing through callback")
 
@@ -108,27 +130,6 @@ class Presenter constructor(ctx: Context){
 
         mRequestQueue?.add(jsonObjectRequest)
     }
-
-
-    fun getTopLevel(callback: (cgTopLevel: CGTopLevel) -> Unit ) {
-
-        val jsonObjectRequest = JsonObjectRequest(
-                Request.Method.GET,
-                TEST_URL,
-                null,
-                Response.Listener { response ->
-//                    var data = CGTopLevel(response.getJSONObject())
-//                    callback(response.getJSONObject(CGTopLevel))
-                },
-
-                Response.ErrorListener { error ->
-                    // todo: handle err
-                })
-
-        mRequestQueue?.add(jsonObjectRequest)
-
-    }
-
 
 
 }

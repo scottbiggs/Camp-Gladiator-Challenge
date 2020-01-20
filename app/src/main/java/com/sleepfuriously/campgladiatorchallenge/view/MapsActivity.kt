@@ -7,6 +7,7 @@ import android.location.Address
 import android.location.Geocoder
 import android.location.Location
 import android.os.Bundle
+import android.util.DisplayMetrics
 import android.util.Log
 import android.view.View
 import android.widget.ProgressBar
@@ -24,11 +25,16 @@ import com.sleepfuriously.campgladiatorchallenge.R
 import com.sleepfuriously.campgladiatorchallenge.model.CGDatum
 import com.sleepfuriously.campgladiatorchallenge.presenter.Presenter
 import java.io.IOException
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.pow
 
 
 class MapsActivity : AppCompatActivity(),
     OnMapReadyCallback,
-    GoogleMap.OnMarkerClickListener {
+    GoogleMap.OnMarkerClickListener,
+    GoogleMap.OnCameraMoveListener,
+    GoogleMap.CancelableCallback {
 
     //---------------------------
     //  constants
@@ -36,19 +42,19 @@ class MapsActivity : AppCompatActivity(),
 
     private val TAG = "biggs-MapsActivity"
 
-    //  KEYS
-    private val CAMERA_POS_KEY = "camera_pos_key"
-    private val LOCATION_KEY = "location_key"
-    private val ZOOM_KEY = "zoom_key"
-
     private val DEFAULT_ZOOM = 13f
 
-    private val MAX_LOC_ENTRIES = 5;
+    private val ZOOM_MAX_DIFF = 4f
+
+    private val DIST_MAX_DIFF = 2.5f
 
     private val DEFAULT_REQUEST_INTERVAL: Long = 10000
 
     private val DEFAULT_FAST_REQUEST_INTERVAL: Long = 5000
 
+    private val SCREEN_MULTIPLE_SEARCH: Float = 4f
+
+    private val METERS_PER_MILE = 1609.34
 
     companion object {
         private const val LOCATION_PERMISSION_REQUEST_CODE = 1
@@ -77,6 +83,7 @@ class MapsActivity : AppCompatActivity(),
 
     private var mCameraPos: CameraPosition? = null
 
+    /** current zoom value of the map */
     private var mZoom: Float = DEFAULT_ZOOM
 
     /** entrypoint to Places api */
@@ -93,10 +100,13 @@ class MapsActivity : AppCompatActivity(),
     private var mLocationUpdateState = false
 
     /** last location */
-    private lateinit var mLastLocation: Location
+    private lateinit var mLastUserLocation: Location
 
     /** stores the last marker so it can be deleted */
     private var mLastMarker: Marker? = null
+
+    /** remembers the last camera position */
+    private lateinit var mLastCameraPosition: LatLng
 
     /** holds list of all markers that are currently in the map */
     private var mCurrentMarkers: ArrayList<CGDatum> = ArrayList()
@@ -105,13 +115,6 @@ class MapsActivity : AppCompatActivity(),
     private var mDefaultLocation = LatLng(-33.8523341, 151.2106085)
 
     private val mLocationPermissionGranted = false
-
-    // for selecting a current place
-
-    private lateinit var mLikelyPlaceNames: Array<String>
-    private lateinit var mLikelyPlaceAddresses: Array<String>
-//    private lateinit var mLikelyAttribs: List<>
-    private lateinit var mLikelyPlaceLatLng: Array<LatLng>
 
     /**
      * Progress UI is only invisible when this number is 0.
@@ -123,6 +126,9 @@ class MapsActivity : AppCompatActivity(),
      */
     @Volatile private var mProgressVisible: Int = 0
 
+    /** when true, the map is in the process of animating */
+    private var mAnimLock = false
+
 
     //---------------------------
     //  functions
@@ -133,13 +139,6 @@ class MapsActivity : AppCompatActivity(),
 
         // Lock device in current orientation
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED
-
-//        // Retrieve location and camera position from saved instance state.
-//        if (savedInstanceState != null) {
-//            mZoom = savedInstanceState.getFloat(ZOOM_KEY)
-//            mLastLocation = savedInstanceState.getParcelable<Location>(LOCATION_KEY) as Location
-//            mCameraPos = savedInstanceState.getParcelable(CAMERA_POS_KEY)
-//        }
 
         if (checkLocPermissions() == false) {
             return
@@ -173,8 +172,9 @@ class MapsActivity : AppCompatActivity(),
                 super.onLocationResult(locationResult)
 //                Log.d(TAG, "mLocationCallback.onLocationResult()")
 
-                mLastLocation = locationResult.lastLocation
-                placeMyLocationMarkerOnMap(LatLng(mLastLocation.latitude, mLastLocation.longitude))
+                mLastUserLocation = locationResult.lastLocation
+                placeMyLocationMarkerOnMap(LatLng(mLastUserLocation.latitude, mLastUserLocation.longitude))
+                onCameraMove()
             }
         }
 
@@ -186,33 +186,36 @@ class MapsActivity : AppCompatActivity(),
     }
 
 
-//    /**
-//     * A chance to save data
-//     */
-//    override fun onSaveInstanceState(outState: Bundle) {
-//        super.onSaveInstanceState(outState)
-//        Log.d(TAG, "onSaveInstanceState() called")
-//
-//        outState.putParcelable(LOCATION_KEY, mLastLocation)
-//        outState.putParcelable(CAMERA_POS_KEY, mCameraPos)
-//        outState.putFloat(ZOOM_KEY, mMap.cameraPosition.zoom)
-//    }
-
+    /**
+     * Initiates server request for locations to add to the map
+     * using current location and radius.
+     */
+    private fun requestCGLocations() {
+        var searchRadius = milesAcrossScreenWidth(mLastUserLocation.latitude, mZoom)
+        searchRadius *= SCREEN_MULTIPLE_SEARCH
+        requestCGLocations(LatLng(mLastUserLocation.latitude, mLastUserLocation.longitude),
+            searchRadius.toFloat()
+        )
+    }
 
     /**
      * Initiates server request for locations to add to the map.
      * Results can be found at [locationCallbackSuccess] and
      * [locationCallbackError].
+     *
+     * @param   loc     The location to center the request around.
+     *
+     * @param   radius  Limit search to this many units from loc.
      */
-    private fun requestCGLocations() {
+    private fun requestCGLocations(loc: LatLng, radius: Float) {
 
         Log.d(TAG, "requestLocations() start")
 
         val presenter = Presenter(this)
-            presenter.requestLocations(LatLng(mLastLocation.latitude, mLastLocation.longitude),
-                mZoom,
-                this::locationCallbackSuccess,
-                this::locationCallbackError)
+        presenter.requestLocations(loc,
+            radius,
+            this::locationCallbackSuccess,
+            this::locationCallbackError)
 
         enableProgressUI()
     }
@@ -248,11 +251,6 @@ class MapsActivity : AppCompatActivity(),
     private fun placeMyLocationMarkerOnMap(location: LatLng) {
         // create a marker object using the given location
         val markerOptions = MarkerOptions().position(location)
-
-        // use custom marker
-//        val bitmap = BitmapFactory.decodeResource(resources, R.mipmap.ic_user_location)
-//        val bitmapDescriptor = BitmapDescriptorFactory.fromBitmap(bitmap)
-//        markerOptions.icon(bitmapDescriptor)
 
         // change color from the default red
         markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
@@ -393,9 +391,54 @@ class MapsActivity : AppCompatActivity(),
     }
 
 
-    //----------------------------------
+    /**
+     * Calculates how many miles the width of the screen consumes as
+     * it is currently displayed.
+     */
+    private fun milesAcrossScreenWidth(): Double {
+
+        if (::mMap.isInitialized)
+//            return milesAcrossScreenWidth(mMap.myLocation.latitude, mMap.cameraPosition.zoom)
+            return milesAcrossScreenWidth(mLastCameraPosition.latitude, mMap.cameraPosition.zoom)
+
+        return milesAcrossScreenWidth(mLastUserLocation.latitude, mZoom)
+    }
+
+    /**
+     * Calculates how many miles the width of the screen consumes.
+     *
+     * @param   lat     Latitude of the location in question
+     *
+     * @param   zoom    The zoom level of the map
+     */
+    private fun milesAcrossScreenWidth(lat: Double, zoom: Float): Double {
+
+        // first find the pixels wide the screen is
+        val displayMetrics = DisplayMetrics()
+        windowManager.defaultDisplay.getMetrics(displayMetrics)
+        val pixelWidth: Double = displayMetrics.widthPixels.toDouble()
+
+        // based on a formula found at: https://gis.stackexchange.com/a/127949/156725
+        val metersPerPx: Double = 156543.03392 * cos(lat * Math.PI / 180) / 2f.pow(zoom)
+        val metersAcross = metersPerPx * pixelWidth
+
+        // convert to miles
+        return metersAcross / METERS_PER_MILE
+    }
+
+
+    /**
+     * Calculates the manhattan distance between two locations
+     *
+     * Note that the distance given is in DEGREES!!!
+     */
+    private fun manhattanDistance(loc1: LatLng, loc2: LatLng): Double {
+        return abs(loc1.latitude - loc2.longitude) + abs((loc1.longitude - loc2.longitude))
+    }
+
+    //------------------------------------------------------------------
     //  callbacks
-    //----------------------------------
+    //------------------------------------------------------------------
 
     /**
      * Manipulates the map once available.
@@ -411,6 +454,7 @@ class MapsActivity : AppCompatActivity(),
 
         mMap.uiSettings.isZoomControlsEnabled = true
         mMap.setOnMarkerClickListener(this)
+        mMap.setOnCameraMoveListener(this)
 
 
         // disable the little blue dot that typically shows your current loc.
@@ -421,11 +465,17 @@ class MapsActivity : AppCompatActivity(),
                 location ->
             // check for null (it's possible)
             if (location != null) {
-                mLastLocation = location
+                mLastUserLocation = location
                 val currentLatLng = LatLng(location.latitude, location.longitude)
                 placeMyLocationMarkerOnMap(currentLatLng) // add our current location marker
 
-                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, mZoom))
+                // signal that a map animation is functioning.
+                mAnimLock = true
+
+                // start animation and set the callback, onFinish()
+                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, mZoom), this)
+
+                // search for radius several times the width of the screen
                 requestCGLocations()
             }
         }
@@ -464,8 +514,8 @@ class MapsActivity : AppCompatActivity(),
 
 
     /**
-     * Callback when server has successfully found data of
-     * CG locations.
+     * Callback when server has successfully found data
+     * as a result of [requestCGLocations].
      */
     private fun locationCallbackSuccess(dataList: List<CGDatum>) {
 
@@ -496,12 +546,70 @@ class MapsActivity : AppCompatActivity(),
     }
 
     /**
-     * Callback when CG location request resulted in error.
+     * Callback when [requestCGLocations] resulted in error.
      */
     private fun locationCallbackError(errStr: String) {
-        Log.e(TAG, "error in data callback")
-        Toast.makeText(this, "Error receiving data", Toast.LENGTH_LONG).show()
+        Log.e(TAG, "locationCallbackError(): $errStr")
         disableProgressUI()
+    }
+
+    /**
+     * called every time the camera is moved
+     */
+    override fun onCameraMove() {
+
+        // don't bother if we're in the middle of an animation
+        if (mAnimLock) {
+            return
+        }
+
+        // make sure last position is initialized
+        if (::mLastCameraPosition.isInitialized == false) {
+            mLastCameraPosition = mMap.cameraPosition.target
+        }
+
+        // Has the map changed enough to be interesting?
+        // That means the zoom has changed by more then ZOOM_MAX_DIFF steps OR
+        //  the map has moved more than SCREEN_MULTIPLE_SEARCH amount.
+//        val currZoom = mMap.cameraPosition.zoom
+//        val currCamLoc = mMap.cameraPosition.target
+//
+//        val distDeg = manhattanDistance(currCamLoc, LatLng(mLastCameraPosition.latitude, mLastCameraPosition.longitude))
+//        val distMiles = distDeg * 69.0
+//        Log.d(TAG, "manhattan distance between mLastCameraPosition and curCamLoc is $distMiles")
+//
+//
+//
+//        if ((currZoom > mZoom + ZOOM_MAX_DIFF) || (currZoom < mZoom - ZOOM_MAX_DIFF) ||
+//            (distMiles > milesAcrossScreenWidth() * DIST_MAX_DIFF)) {
+//            mZoom = currZoom
+//            mLastCameraPosition = currCamLoc
+//
+//            requestCGLocations()
+//        }
+
+
+    }
+
+
+    /**
+     * Called when the maps animation finishes.
+     *
+     * This callback/function is needed to signal that map animations
+     * are complete.
+     */
+    override fun onFinish() {
+        mAnimLock = false
+    }
+
+    /**
+     * Called when maps animation is cancelled
+     *
+     * This callback/function is needed to signal that map animations
+     * are complete.
+     */
+    override fun onCancel() {
+        mAnimLock = false
     }
 
 }

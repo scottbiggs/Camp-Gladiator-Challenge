@@ -12,7 +12,7 @@ class CGDatum {
     //  constants
     //------------------
 
-    private val TAG = "CGDatum"
+    private val TAG = "biggs-CGDatum"
 
     companion object {
         public const val PLACE_ID_KEY = "placeID"
