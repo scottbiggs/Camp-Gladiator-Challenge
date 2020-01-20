@@ -2,8 +2,7 @@
 fulfills requirements for job application at Camp Gladiator
 
 Easy Install:
-  Go to google play store and install this app directly.  Here's the URL:
-  (todo once link is up)
+  Go to google play store and install this app directly.  Here's the URL: https://play.google.com/store/apps/details?id=com.sleepfuriously.campgladiatorchallenge
 
 To build and install:
   1. clone this to your favorite directory
