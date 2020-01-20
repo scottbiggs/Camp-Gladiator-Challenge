@@ -7,6 +7,9 @@
 
     <string name="need_fine_location_permission">This app cannot run without location data.</string>
 
+    <string name="search_go">go</string>
     <string name="search_hint">search</string>
     <string name="loading_msg">loading…</string>
+
+    <string name="unable_to_find_loc_string">Unable to find location.</string>
 </resources>

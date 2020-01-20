@@ -1,5 +1,6 @@
 package com.sleepfuriously.campgladiatorchallenge.view
 
+import android.content.Context
 import android.content.IntentSender
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
@@ -9,9 +10,8 @@ import android.location.Location
 import android.os.Bundle
 import android.util.Log
 import android.view.View
-import android.widget.ProgressBar
-import android.widget.TextView
-import android.widget.Toast
+import android.view.inputmethod.InputMethodManager
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import com.google.android.gms.common.api.ResolvableApiException
@@ -160,6 +160,19 @@ class MapsActivity : AppCompatActivity(),
         mLoadingProgressBar = findViewById(R.id.progress_bar)
         mLoadingTv = findViewById(R.id.progress_tv)
 
+        val searchEt: EditText = findViewById(R.id.search_bar_et)
+        val searchButton: Button = findViewById(R.id.search_btn)
+
+        // Set callback for user search
+        searchButton.setOnClickListener {
+            val searchText = searchEt.text
+            requestCGLocations(searchText.toString())
+
+            (getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)?.apply {
+                hideSoftInputFromWindow(searchButton.windowToken, 0)
+            }
+        }
+
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager
             .findFragmentById(R.id.map) as SupportMapFragment
@@ -213,6 +226,29 @@ class MapsActivity : AppCompatActivity(),
                 mZoom,
                 this::locationCallbackSuccess,
                 this::locationCallbackError)
+
+        enableProgressUI()
+    }
+
+    /**
+     * initiates server request for locations to add to the map based on user's text.
+     */
+    private fun requestCGLocations(str: String) {
+
+        Log.d(TAG, "requestLocations($str) start")
+
+        val latLng = getLocFromString(str)
+        if (latLng == null) {
+            Toast.makeText(this, R.string.unable_to_find_loc_string, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, mZoom))
+
+        val presenter = Presenter(this)
+        presenter.requestLocations(latLng, mZoom,
+            this::locationCallbackSuccess,
+            this::locationCallbackError)
 
         enableProgressUI()
     }
@@ -328,6 +364,19 @@ class MapsActivity : AppCompatActivity(),
             }
         }
 
+    }
+
+
+    private fun getLocFromString(str: String): LatLng? {
+
+        val geocoder = Geocoder(this)
+        val addresses: List<Address> = geocoder.getFromLocationName(str, 1)    // only use the 1st
+
+        if (addresses.isEmpty()) {
+            return null
+        }
+
+        return LatLng(addresses[0].latitude, addresses[0].longitude)
     }
 
 

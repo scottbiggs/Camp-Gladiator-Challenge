@@ -6,15 +6,35 @@
     android:layout_height="match_parent"
     >
 
-    <EditText
-        android:id="@+id/search_bar_et"
+    <RelativeLayout
+        android:id="@+id/search_rl"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginLeft="8dp"
         android:layout_marginRight="8dp"
-        android:inputType="text"
-        android:hint="@string/search_hint"
-        android:importantForAutofill="no" />
+        >
+
+        <Button
+            android:id="@+id/search_btn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:text="@string/search_go"
+            />
+
+        <EditText
+            android:id="@+id/search_bar_et"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_marginEnd="8dp"
+            android:layout_toStartOf="@id/search_btn"
+            android:inputType="text"
+            android:lines="1"
+            android:hint="@string/search_hint"
+            android:importantForAutofill="no" />
+
+    </RelativeLayout>
 
     <ProgressBar
         android:id="@+id/progress_bar"
@@ -46,7 +66,7 @@
         android:name="com.google.android.gms.maps.SupportMapFragment"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/search_bar_et"
+        android:layout_below="@id/search_rl"
         android:layout_above="@id/progress_bar"
         tools:context=".view.MapsActivity" />
 
